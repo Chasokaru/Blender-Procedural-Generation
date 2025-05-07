@@ -1,0 +1,300 @@
+import bpy
+import mathutils
+
+def create_sphere_with_geometry_nodes():
+    # Create a UV sphere at origin
+    bpy.ops.mesh.primitive_uv_sphere_add(
+        radius=1.0,
+        location=(0, 0, 0),
+        scale=(1, 1, 1),
+        segments=64,
+        ring_count=32
+    )
+    sphere = bpy.context.active_object
+    sphere.name = "Procedural_Sphere"
+    
+    # Create the geometry nodes modifier
+    modifier = sphere.modifiers.new(name="GeometryNodes", type='NODES')
+    
+    # Create the node group if it doesn't exist
+    if "Geometry Nodes.001" not in bpy.data.node_groups:
+        geometry_nodes_001 = geometry_nodes_001_node_group()
+    else:
+        geometry_nodes_001 = bpy.data.node_groups["Geometry Nodes.001"]
+    
+    # Assign the node group to the modifier
+    modifier.node_group = geometry_nodes_001
+    
+    return sphere
+
+def geometry_nodes_001_node_group():
+    geometry_nodes_001 = bpy.data.node_groups.new(type='GeometryNodeTree', name="Geometry Nodes.001")
+
+    geometry_nodes_001.color_tag = 'NONE'
+    geometry_nodes_001.description = ""
+    geometry_nodes_001.default_group_node_width = 140
+    geometry_nodes_001.is_modifier = True
+
+    # Interface
+    geometry_socket = geometry_nodes_001.interface.new_socket(name="Geometry", in_out='OUTPUT', socket_type='NodeSocketGeometry')
+    geometry_socket.attribute_domain = 'POINT'
+
+    geometry_socket_1 = geometry_nodes_001.interface.new_socket(name="Geometry", in_out='INPUT', socket_type='NodeSocketGeometry')
+    geometry_socket_1.attribute_domain = 'POINT'
+
+    roughness_north_pole_socket = geometry_nodes_001.interface.new_socket(name="Roughness North Pole", in_out='INPUT', socket_type='NodeSocketFloat')
+    roughness_north_pole_socket.default_value = 0.0
+    roughness_north_pole_socket.min_value = 0.0
+    roughness_north_pole_socket.max_value = 3.4028234663852886e+38
+
+    roughness_equator_socket = geometry_nodes_001.interface.new_socket(name="Roughness Equator", in_out='INPUT', socket_type='NodeSocketFloat')
+    roughness_equator_socket.default_value = 0.0
+    roughness_equator_socket.min_value = 0.0
+    roughness_equator_socket.max_value = 3.4028234663852886e+38
+
+    roughness_south_pole_socket = geometry_nodes_001.interface.new_socket(name="Roughness South Pole", in_out='INPUT', socket_type='NodeSocketFloat')
+    roughness_south_pole_socket.default_value = 0.0
+    roughness_south_pole_socket.min_value = 0.0
+    roughness_south_pole_socket.max_value = 3.402820018375656e+38
+
+    # Create all nodes
+    group_input = geometry_nodes_001.nodes.new("NodeGroupInput")
+    group_output = geometry_nodes_001.nodes.new("NodeGroupOutput")
+    
+    transform_geometry = geometry_nodes_001.nodes.new("GeometryNodeTransform")
+    transform_geometry.name = "Transform Geometry"
+    transform_geometry.mode = 'COMPONENTS'
+    transform_geometry.inputs[1].default_value = (0.0, 0.0, 0.0)
+    transform_geometry.inputs[2].default_value = (0.0, 0.0, 0.0)
+    transform_geometry.inputs[3].default_value = (1.0, 1.0, 1.0)
+
+    subdivide_mesh = geometry_nodes_001.nodes.new("GeometryNodeSubdivideMesh")
+    subdivide_mesh.name = "Subdivide Mesh"
+    subdivide_mesh.inputs[1].default_value = 3
+
+    set_position = geometry_nodes_001.nodes.new("GeometryNodeSetPosition")
+    set_position.name = "Set Position"
+    set_position.inputs[1].default_value = True
+    set_position.inputs[2].default_value = (0.0, 0.0, 0.0)
+
+    distribute_points_on_faces = geometry_nodes_001.nodes.new("GeometryNodeDistributePointsOnFaces")
+    distribute_points_on_faces.name = "Distribute Points on Faces"
+    distribute_points_on_faces.distribute_method = 'RANDOM'
+    distribute_points_on_faces.use_legacy_normal = False
+    distribute_points_on_faces.inputs[1].default_value = True
+    distribute_points_on_faces.inputs[4].default_value = 0.0
+    distribute_points_on_faces.inputs[6].default_value = 0
+
+    cone = geometry_nodes_001.nodes.new("GeometryNodeMeshCone")
+    cone.name = "Cone"
+    cone.fill_type = 'NGON'
+    cone.inputs[0].default_value = 3
+    cone.inputs[1].default_value = 1
+    cone.inputs[2].default_value = 1
+    cone.inputs[3].default_value = 0.0
+    cone.inputs[4].default_value = 0.1
+    cone.inputs[5].default_value = 0.6
+
+    instance_on_points = geometry_nodes_001.nodes.new("GeometryNodeInstanceOnPoints")
+    instance_on_points.name = "Instance on Points"
+    instance_on_points.inputs[1].default_value = True
+    instance_on_points.inputs[3].default_value = False
+    instance_on_points.inputs[4].default_value = 0
+
+    set_material = geometry_nodes_001.nodes.new("GeometryNodeSetMaterial")
+    set_material.name = "Set Material"
+    set_material.inputs[1].default_value = True
+
+    set_material_001 = geometry_nodes_001.nodes.new("GeometryNodeSetMaterial")
+    set_material_001.name = "Set Material.001"
+    set_material_001.inputs[1].default_value = True
+
+    rotate_instances = geometry_nodes_001.nodes.new("GeometryNodeRotateInstances")
+    rotate_instances.name = "Rotate Instances"
+    rotate_instances.inputs[1].default_value = True
+    rotate_instances.inputs[3].default_value = (0.0, 0.0, 0.0)
+    rotate_instances.inputs[4].default_value = True
+
+    realize_instances = geometry_nodes_001.nodes.new("GeometryNodeRealizeInstances")
+    realize_instances.name = "Realize Instances"
+    realize_instances.inputs[1].default_value = True
+    realize_instances.inputs[2].default_value = True
+    realize_instances.inputs[3].default_value = 0
+
+    join_geometry = geometry_nodes_001.nodes.new("GeometryNodeJoinGeometry")
+    join_geometry.name = "Join Geometry"
+
+    # Noise system with your updated parameters
+    noise_texture = geometry_nodes_001.nodes.new("ShaderNodeTexNoise")
+    noise_texture.name = "Noise Texture"
+    noise_texture.noise_dimensions = '3D'
+    noise_texture.noise_type = 'FBM'
+    noise_texture.normalize = True
+    noise_texture.inputs[0].default_value = (0.0, 0.0, 0.0)
+    noise_texture.inputs[3].default_value = 14.999999046325684  # Detail
+    noise_texture.inputs[4].default_value = 1.0  # Roughness
+    noise_texture.inputs[5].default_value = 0.3999999761581421  # Lacunarity
+    noise_texture.inputs[8].default_value = 1.7999999523162842  # Distortion
+
+    noise_texture_001 = geometry_nodes_001.nodes.new("ShaderNodeTexNoise")
+    noise_texture_001.name = "Noise Texture.001"
+    noise_texture_001.noise_dimensions = '3D'
+    noise_texture_001.noise_type = 'FBM'
+    noise_texture_001.normalize = True
+    noise_texture_001.inputs[0].default_value = (0.0, 0.0, 0.0)
+    noise_texture_001.inputs[3].default_value = 15.0  # Detail
+    noise_texture_001.inputs[4].default_value = 0.7266666889190674  # Roughness
+    noise_texture_001.inputs[5].default_value = 0.09999999403953552  # Lacunarity
+    noise_texture_001.inputs[8].default_value = 0.7999999523162842  # Distortion
+
+    noise_texture_002 = geometry_nodes_001.nodes.new("ShaderNodeTexNoise")
+    noise_texture_002.name = "Noise Texture.002"
+    noise_texture_002.noise_dimensions = '3D'
+    noise_texture_002.noise_type = 'FBM'
+    noise_texture_002.normalize = True
+    noise_texture_002.inputs[0].default_value = (0.0, 0.0, 0.0)
+    noise_texture_002.inputs[3].default_value = 15.0  # Detail
+    noise_texture_002.inputs[4].default_value = 1.0  # Roughness
+    noise_texture_002.inputs[5].default_value = 0.2999999523162842  # Lacunarity
+    noise_texture_002.inputs[8].default_value = 2.0999999046325684  # Distortion
+
+    combine_xyz = geometry_nodes_001.nodes.new("ShaderNodeCombineXYZ")
+    combine_xyz.name = "Combine XYZ"
+
+    combine_xyz_001 = geometry_nodes_001.nodes.new("ShaderNodeCombineXYZ")
+    combine_xyz_001.name = "Combine XYZ.001"
+    combine_xyz_001.inputs[0].default_value = 1.0
+    combine_xyz_001.inputs[1].default_value = 1.0
+
+    random_value = geometry_nodes_001.nodes.new("FunctionNodeRandomValue")
+    random_value.name = "Random Value"
+    random_value.data_type = 'FLOAT'
+    random_value.inputs[2].default_value = 1.0
+    random_value.inputs[3].default_value = 2.0
+    random_value.inputs[7].default_value = 0
+    random_value.inputs[8].default_value = 2
+
+    random_value_001 = geometry_nodes_001.nodes.new("FunctionNodeRandomValue")
+    random_value_001.name = "Random Value.001"
+    random_value_001.data_type = 'FLOAT'
+    random_value_001.inputs[2].default_value = 2.0
+    random_value_001.inputs[3].default_value = 8.0
+    random_value_001.inputs[7].default_value = 0
+    random_value_001.inputs[8].default_value = 0
+
+    math_001 = geometry_nodes_001.nodes.new("ShaderNodeMath")
+    math_001.name = "Math.001"
+    math_001.operation = 'SINE'
+    math_001.use_clamp = False
+
+    math_002 = geometry_nodes_001.nodes.new("ShaderNodeMath")
+    math_002.name = "Math.002"
+    math_002.operation = 'DIVIDE'
+    math_002.use_clamp = False
+
+    combine_xyz_002 = geometry_nodes_001.nodes.new("ShaderNodeCombineXYZ")
+    combine_xyz_002.name = "Combine XYZ.002"
+    combine_xyz_002.inputs[1].default_value = 0.0
+    combine_xyz_002.inputs[2].default_value = 0.0
+
+    scene_time = geometry_nodes_001.nodes.new("GeometryNodeInputSceneTime")
+    scene_time.name = "Scene Time"
+
+    math_003 = geometry_nodes_001.nodes.new("ShaderNodeMath")
+    math_003.name = "Math.003"
+    math_003.operation = 'MULTIPLY'
+    math_003.use_clamp = False
+    math_003.inputs[0].default_value = 0.39999961853027344  # Changed from -2.0 to positive value
+
+    # Set node locations (same as your latest version)
+    group_input.location = (-3186.977294921875, -21.53408432006836)
+    group_output.location = (1032.559326171875, 146.28684997558594)
+    transform_geometry.location = (-2729.3271484375, 85.27590942382812)
+    subdivide_mesh.location = (-2554.25732421875, 89.90591430664062)
+    set_position.location = (-1344.020751953125, 71.19683837890625)
+    distribute_points_on_faces.location = (-1143.3408203125, 16.68685531616211)
+    cone.location = (-1265.080810546875, -338.63311767578125)
+    instance_on_points.location = (-743.5906982421875, 16.33683204650879)
+    set_material.location = (-523.2507934570312, 14.786855697631836)
+    set_material_001.location = (-200.81072998046875, 112.96684265136719)
+    rotate_instances.location = (251.0092315673828, 39.21685028076172)
+    realize_instances.location = (470.74920654296875, 25.956851959228516)
+    join_geometry.location = (690.7293090820312, 142.0968475341797)
+    noise_texture.location = (-2427.94775390625, -464.2940368652344)
+    noise_texture_001.location = (-2603.04736328125, -473.364013671875)
+    noise_texture_002.location = (-2793.61767578125, -462.3540954589844)
+    combine_xyz.location = (-2142.016357421875, -47.34838104248047)
+    combine_xyz_001.location = (-889.7607421875, -387.68316650390625)
+    random_value.location = (-1086.900634765625, -431.6431579589844)
+    random_value_001.location = (-335.46075439453125, -195.02313232421875)
+    math_001.location = (-334.3107604980469, -51.5831413269043)
+    math_002.location = (-158.78074645996094, -51.5831413269043)
+    combine_xyz_002.location = (52.92924880981445, -28.16316795349121)
+    scene_time.location = (-526.57080078125, -121.29315185546875)
+    math_003.location = (-2454.8173828125, -278.44610595703125)
+
+    # Set node dimensions (same as your latest version)
+    group_input.width, group_input.height = 140.0, 100.0
+    group_output.width, group_output.height = 140.0, 100.0
+    transform_geometry.width, transform_geometry.height = 140.0, 100.0
+    subdivide_mesh.width, subdivide_mesh.height = 140.0, 100.0
+    set_position.width, set_position.height = 140.0, 100.0
+    distribute_points_on_faces.width, distribute_points_on_faces.height = 178.1300048828125, 100.0
+    cone.width, cone.height = 140.0, 100.0
+    instance_on_points.width, instance_on_points.height = 140.0, 100.0
+    set_material.width, set_material.height = 140.0, 100.0
+    set_material_001.width, set_material_001.height = 140.0, 100.0
+    rotate_instances.width, rotate_instances.height = 140.0, 100.0
+    realize_instances.width, realize_instances.height = 140.0, 100.0
+    join_geometry.width, join_geometry.height = 140.0, 100.0
+    noise_texture.width, noise_texture.height = 140.0, 100.0
+    noise_texture_001.width, noise_texture_001.height = 140.0, 100.0
+    noise_texture_002.width, noise_texture_002.height = 140.0, 100.0
+    combine_xyz.width, combine_xyz.height = 140.0, 100.0
+    combine_xyz_001.width, combine_xyz_001.height = 140.0, 100.0
+    random_value.width, random_value.height = 140.0, 100.0
+    random_value_001.width, random_value_001.height = 140.0, 100.0
+    math_001.width, math_001.height = 140.0, 100.0
+    math_002.width, math_002.height = 140.0, 100.0
+    combine_xyz_002.width, combine_xyz_002.height = 140.0, 100.0
+    scene_time.width, scene_time.height = 140.0, 100.0
+    math_003.width, math_003.height = 140.0, 100.0
+
+    # Create links (updated to match your latest node logic)
+    geometry_nodes_001.links.new(group_input.outputs[0], transform_geometry.inputs[0])
+    geometry_nodes_001.links.new(transform_geometry.outputs[0], subdivide_mesh.inputs[0])
+    geometry_nodes_001.links.new(subdivide_mesh.outputs[0], set_position.inputs[0])
+    geometry_nodes_001.links.new(noise_texture.outputs[0], combine_xyz.inputs[2])
+    geometry_nodes_001.links.new(distribute_points_on_faces.outputs[0], instance_on_points.inputs[0])
+    geometry_nodes_001.links.new(distribute_points_on_faces.outputs[1], instance_on_points.inputs[5])
+    geometry_nodes_001.links.new(cone.outputs[0], instance_on_points.inputs[2])
+    geometry_nodes_001.links.new(random_value.outputs[1], combine_xyz_001.inputs[2])
+    geometry_nodes_001.links.new(combine_xyz_001.outputs[0], instance_on_points.inputs[6])
+    geometry_nodes_001.links.new(instance_on_points.outputs[0], set_material.inputs[0])
+    geometry_nodes_001.links.new(set_material.outputs[0], rotate_instances.inputs[0])
+    geometry_nodes_001.links.new(set_position.outputs[0], set_material_001.inputs[0])
+    geometry_nodes_001.links.new(set_material_001.outputs[0], join_geometry.inputs[0])
+    geometry_nodes_001.links.new(rotate_instances.outputs[0], realize_instances.inputs[0])
+    geometry_nodes_001.links.new(join_geometry.outputs[0], group_output.inputs[0])
+    geometry_nodes_001.links.new(scene_time.outputs[0], math_001.inputs[0])
+    geometry_nodes_001.links.new(math_001.outputs[0], math_002.inputs[0])
+    geometry_nodes_001.links.new(random_value_001.outputs[1], math_002.inputs[1])
+    geometry_nodes_001.links.new(math_002.outputs[0], combine_xyz_002.inputs[0])
+    geometry_nodes_001.links.new(combine_xyz_002.outputs[0], rotate_instances.inputs[2])
+    geometry_nodes_001.links.new(group_input.outputs[2], noise_texture_001.inputs[2])
+    geometry_nodes_001.links.new(group_input.outputs[3], noise_texture.inputs[2])
+    geometry_nodes_001.links.new(noise_texture_001.outputs[0], math_003.inputs[1])
+    geometry_nodes_001.links.new(math_003.outputs[0], combine_xyz.inputs[1])
+    geometry_nodes_001.links.new(combine_xyz.outputs[0], set_position.inputs[3])
+    geometry_nodes_001.links.new(noise_texture_002.outputs[0], combine_xyz.inputs[0])
+    geometry_nodes_001.links.new(group_input.outputs[1], noise_texture_002.inputs[2])
+    geometry_nodes_001.links.new(realize_instances.outputs[0], join_geometry.inputs[0])
+
+    return geometry_nodes_001
+
+# Create the sphere with the modifier
+procedural_sphere = create_sphere_with_geometry_nodes()
+
+# Optionally set the sphere as the active object
+bpy.context.view_layer.objects.active = procedural_sphere
+procedural_sphere.select_set(True)
