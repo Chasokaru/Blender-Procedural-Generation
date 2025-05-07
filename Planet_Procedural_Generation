@@ -1,4 +1,5 @@
-import bpy, mathutils
+import bpy, mathutils, random
+import math
 
 def create_planet():
     # Create the planet sphere
@@ -224,6 +225,9 @@ def geometry_nodes_001_node_group():
     join_geometry = geometry_nodes_001.nodes.new("GeometryNodeJoinGeometry")
     join_geometry.name = "Join Geometry"
 
+    def random_scale():
+        return 0.0 if random.random() < 0.10 else random.uniform(0.001, 100.0)
+
     #node Noise Texture
     noise_texture = geometry_nodes_001.nodes.new("ShaderNodeTexNoise")
     noise_texture.name = "Noise Texture"
@@ -232,6 +236,8 @@ def geometry_nodes_001_node_group():
     noise_texture.normalize = True
     #Vector
     noise_texture.inputs[0].default_value = (0.0, 0.0, 0.0)
+    #Scale
+    noise_texture.inputs[2].default_value = random_scale()
     #Detail
     noise_texture.inputs[3].default_value = 14.999999046325684
     #Roughness
@@ -249,6 +255,8 @@ def geometry_nodes_001_node_group():
     noise_texture_001.normalize = True
     #Vector
     noise_texture_001.inputs[0].default_value = (0.0, 0.0, 0.0)
+    #Scale
+    noise_texture_001.inputs[2].default_value = random_scale()
     #Detail
     noise_texture_001.inputs[3].default_value = 15.0
     #Roughness
@@ -266,6 +274,8 @@ def geometry_nodes_001_node_group():
     noise_texture_002.normalize = True
     #Vector
     noise_texture_002.inputs[0].default_value = (0.0, 0.0, 0.0)
+    #Scale
+    noise_texture_002.inputs[2].default_value = random_scale()
     #Detail
     noise_texture_002.inputs[3].default_value = 15.0
     #Roughness
@@ -440,10 +450,6 @@ def geometry_nodes_001_node_group():
     geometry_nodes_001.links.new(math_002.outputs[0], combine_xyz_002.inputs[0])
     #combine_xyz_002.Vector -> rotate_instances.Rotation
     geometry_nodes_001.links.new(combine_xyz_002.outputs[0], rotate_instances.inputs[2])
-    #group_input.Roughness Equator -> noise_texture_001.Scale
-    geometry_nodes_001.links.new(group_input.outputs[2], noise_texture_001.inputs[2])
-    #group_input.Roughness South Pole -> noise_texture.Scale
-    geometry_nodes_001.links.new(group_input.outputs[3], noise_texture.inputs[2])
     #noise_texture_001.Fac -> math_003.Value
     geometry_nodes_001.links.new(noise_texture_001.outputs[0], math_003.inputs[1])
     #math_003.Value -> combine_xyz.Y
@@ -452,8 +458,6 @@ def geometry_nodes_001_node_group():
     geometry_nodes_001.links.new(combine_xyz.outputs[0], set_position.inputs[3])
     #noise_texture_002.Fac -> combine_xyz.X
     geometry_nodes_001.links.new(noise_texture_002.outputs[0], combine_xyz.inputs[0])
-    #group_input.Roughness North Pole -> noise_texture_002.Scale
-    geometry_nodes_001.links.new(group_input.outputs[1], noise_texture_002.inputs[2])
     #realize_instances.Geometry -> join_geometry.Geometry
     geometry_nodes_001.links.new(realize_instances.outputs[0], join_geometry.inputs[0])
     return geometry_nodes_001
@@ -731,14 +735,29 @@ def geometry_nodes_002_node_group():
     math.use_clamp = False
     #Value_001
     math.inputs[1].default_value = 0.9
-
-    #node Math.001
+    
+    # node Math.001
     math_001 = geometry_nodes_002.nodes.new("ShaderNodeMath")
     math_001.name = "Math.001"
     math_001.operation = 'MULTIPLY'
     math_001.use_clamp = False
-    #Value_001
-    math_001.inputs[1].default_value = 0.003000000026077032
+
+    # Get user-defined density range from scene property
+    scene = bpy.context.scene
+    min_density = scene.planet_generator_props.cube_density_min
+    max_density = scene.planet_generator_props.cube_density_max
+
+    # Clamp and calculate random percentage
+    min_density = max(0.0, min(min_density, 100.0))
+    max_density = max(min_density, min(max_density, 100.0))
+    random_density_percent = random.uniform(min_density, max_density)
+
+    # Normalize to 0.0–1.0 (because later it's multiplied by 1.0)
+    math_001.inputs[0].default_value = random_density_percent * 0.001
+    math_001.inputs[1].default_value = 1.0
+
+    print(f"[{scene.frame_current}] Assigned {random_density_percent:.1f}% cube density")
+
 
     #node Random Value.005
     random_value_005 = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
@@ -889,12 +908,8 @@ def geometry_nodes_002_node_group():
     geometry_nodes_002.links.new(group_input_001.outputs[0], grid.inputs[0])
     #group_input_001.Density Max -> distribute_points_on_faces_001.Density Max
     geometry_nodes_002.links.new(group_input_001.outputs[2], distribute_points_on_faces_001.inputs[3])
-    #math.Value -> random_value_005.Probability
-    geometry_nodes_002.links.new(math.outputs[0], random_value_005.inputs[6])
-    #math_001.Value -> math.Value
-    geometry_nodes_002.links.new(math_001.outputs[0], math.inputs[0])
-    #scene_time.Frame -> math_001.Value
-    geometry_nodes_002.links.new(scene_time.outputs[1], math_001.inputs[0])
+    #math_001.Value -> random_value_005.Probability
+    geometry_nodes_002.links.new(math_001.outputs[0], random_value_005.inputs[6])
     #set_material_002.Geometry -> join_geometry.Geometry
     geometry_nodes_002.links.new(set_material_002.outputs[0], join_geometry.inputs[0])
     
@@ -911,13 +926,160 @@ def create_planet_system():
     # Create the placement plane
     plane = create_placement_plane(planet)
     
+    # Create the object that will be instanced
     cube = create_cube()
+
+    # Hide the original planet and cube from viewport and render
+    planet.hide_viewport = True
+    planet.hide_render = True
+    cube.hide_viewport = True
+    cube.hide_render = True
+
+    # Ensure the placement plane is still visible
+    plane.hide_viewport = False
+    plane.hide_render = False
     
-    # Select the planet for viewing
-    bpy.context.view_layer.objects.active = planet
-    planet.select_set(True)
+    # Select the placement plane for viewing
+    bpy.context.view_layer.objects.active = plane
+    plane.select_set(True)
     
     print("Planet system created successfully!")
 
-# Run the script
-create_planet_system()
+def add_star():
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=25, location=(0, 0, 0))  # 50m diameter
+    star = bpy.context.active_object
+    star.name = "Star"
+    return star
+
+def add_orbiting_planet(location, radius):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=location)
+    planet = bpy.context.active_object
+    planet.name = f"OrbitingPlanet_{round(radius, 2)}"
+
+    # Add terrain modifier
+    modifier = planet.modifiers.new(name="PlanetTerrain", type='NODES')
+    modifier.node_group = geometry_nodes_001_node_group()
+
+    # Create placement plane
+    bpy.ops.mesh.primitive_plane_add(size=2, location=location)
+    plane = bpy.context.active_object
+    plane.name = f"{planet.name}_PlacementPlane"
+
+    # Add placement modifier
+    modifier = plane.modifiers.new(name="PlanetObjectPlacer", type='NODES')
+    modifier.node_group = geometry_nodes_002_node_group()
+
+    # Link planet to Object Info
+    for node in modifier.node_group.nodes:
+        if node.name == "Object Info":
+            node.inputs[0].default_value = planet
+
+    # Link TestCube to Object Info.001
+    cube = bpy.data.objects.get("TestCube")
+    if cube:
+        for node in modifier.node_group.nodes:
+            if node.name == "Object Info.001":
+                node.inputs[0].default_value = cube
+        modifier["Input_4"] = cube
+
+def create_orbiting_planets(n):
+    for _ in range(n):
+        angle = random.uniform(0, 2 * math.pi)
+        distance = random.uniform(100, 1000)
+        x = math.cos(angle) * distance
+        y = math.sin(angle) * distance
+        z = 0
+        radius = random.uniform(0.5, 17.5)  # 1m–35m diameter
+        add_orbiting_planet((x, y, z), radius)
+
+def create_full_planet_system(num_orbiting_planets=5):
+    # --- Delete visible objects in the current view layer ---
+    view_layer_objects = bpy.context.view_layer.objects
+    for obj in view_layer_objects:
+        obj.hide_set(False)
+        obj.hide_viewport = False
+        obj.hide_render = False
+        obj.select_set(True)
+    bpy.ops.object.delete()
+
+    # --- Optionally delete hidden/orphaned objects not in view layer ---
+    for obj in bpy.data.objects:
+        if obj.name not in bpy.context.view_layer.objects:
+            bpy.data.objects.remove(obj, do_unlink=True)
+
+    # --- Regenerate ---
+    add_star()
+    cube = create_cube(name="TestCube")
+    cube.hide_viewport = True
+    cube.hide_render = True
+    create_orbiting_planets(num_orbiting_planets)
+    print("Full system generated with Star and orbiting planets.")
+    
+class PlanetGeneratorProperties(bpy.types.PropertyGroup):
+    planet_count: bpy.props.IntProperty(
+        name="Planet Count",
+        default=5,
+        min=1,
+        max=100
+    )
+    cube_density_min: bpy.props.FloatProperty(
+    name="Cube Density Min (%)",
+    description="Minimum percentage of cube coverage on a planet",
+    default=60.0,
+    min=0.0,
+    max=100.0
+    )
+    cube_density_max: bpy.props.FloatProperty(
+    name="Cube Density Max (%)",
+    description="Maximum percentage of cube coverage on a planet",
+    default=100.0,
+    min=0.0,
+    max=100.0
+)
+
+# Operator to regenerate planet system
+class GeneratePlanetSystemOperator(bpy.types.Operator):
+    bl_idname = "object.generate_planet_system"
+    bl_label = "Generate Planet System"
+    bl_description = "Delete old system and generate a new planet system"
+
+    def execute(self, context):
+        props = context.scene.planet_generator_props
+        create_full_planet_system(num_orbiting_planets=props.planet_count)
+        return {'FINISHED'}
+
+# UI Panel
+class PlanetGeneratorPanel(bpy.types.Panel):
+    bl_label = "Planet Generator"
+    bl_idname = "VIEW3D_PT_planet_generator"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Planet Tools'
+
+    def draw(self, context):
+        layout = self.layout
+        props = context.scene.planet_generator_props
+
+        layout.prop(props, "planet_count")
+        layout.operator("object.generate_planet_system", text="Generate Planet System")
+        layout.prop(props, "cube_density_min")
+        layout.prop(props, "cube_density_max")
+
+# Register classes
+def register():
+    bpy.utils.register_class(PlanetGeneratorProperties)
+    bpy.utils.register_class(GeneratePlanetSystemOperator)
+    bpy.utils.register_class(PlanetGeneratorPanel)
+    bpy.types.Scene.planet_generator_props = bpy.props.PointerProperty(type=PlanetGeneratorProperties)
+
+def unregister():
+    bpy.utils.unregister_class(PlanetGeneratorProperties)
+    bpy.utils.unregister_class(GeneratePlanetSystemOperator)
+    bpy.utils.unregister_class(PlanetGeneratorPanel)
+    del bpy.types.Scene.planet_generator_props
+
+if __name__ == "__main__":
+    register()
+
+# Run this to regenerate
+create_full_planet_system(num_orbiting_planets=5)
