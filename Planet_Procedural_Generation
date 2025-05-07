@@ -226,7 +226,7 @@ def geometry_nodes_001_node_group():
     join_geometry.name = "Join Geometry"
 
     def random_scale():
-        return 0.0 if random.random() < 0.10 else random.uniform(0.001, 100.0)
+        return 0.0 if random.random() < 0.10 else random.uniform(0.001, 10.0)
 
     #node Noise Texture
     noise_texture = geometry_nodes_001.nodes.new("ShaderNodeTexNoise")
@@ -485,7 +485,7 @@ def geometry_nodes_002_node_group():
 
     #Socket Size
     size_socket = geometry_nodes_002.interface.new_socket(name = "Size", in_out='INPUT', socket_type = 'NodeSocketFloat')
-    size_socket.default_value = 1.899999976158142
+    size_socket.default_value = 50.0
     size_socket.min_value = 0.0
     size_socket.max_value = 3.4028234663852886e+38
     size_socket.subtype = 'DISTANCE'
@@ -678,6 +678,10 @@ def geometry_nodes_002_node_group():
     transform_geometry_001.inputs[1].default_value = (0.0, 0.0, 0.0)
     #Rotation
     transform_geometry_001.inputs[2].default_value = (0.0, 0.0, 0.0)
+    #Scale
+    random_scale = random.uniform(1.0, 35.0)
+    transform_geometry_001 = geometry_nodes_002.nodes.new("GeometryNodeTransform")
+    transform_geometry_001.inputs[3].default_value = (random_scale, random_scale, random_scale)
 
     #node Distribute Points on Faces
     distribute_points_on_faces = geometry_nodes_002.nodes.new("GeometryNodeDistributePointsOnFaces")
@@ -838,7 +842,6 @@ def geometry_nodes_002_node_group():
     random_value_006.width, random_value_006.height = 140.0, 100.0
 
     #initialize geometry_nodes_002 links
-    #transform_geometry_001.Geometry -> instance_on_points.Instance
     geometry_nodes_002.links.new(transform_geometry_001.outputs[0], instance_on_points.inputs[2])
     #random_value.Value -> combine_xyz.X
     geometry_nodes_002.links.new(random_value.outputs[1], combine_xyz.inputs[0])
@@ -900,8 +903,6 @@ def geometry_nodes_002_node_group():
     geometry_nodes_002.links.new(group_input_001.outputs[8], set_material_001.inputs[2])
     #object_info.Geometry -> transform_geometry_001.Geometry
     geometry_nodes_002.links.new(object_info.outputs[4], transform_geometry_001.inputs[0])
-    #group_input_001.Size -> transform_geometry_001.Scale
-    geometry_nodes_002.links.new(group_input_001.outputs[0], transform_geometry_001.inputs[3])
     #group_input_001.Size -> grid.Size Y
     geometry_nodes_002.links.new(group_input_001.outputs[0], grid.inputs[1])
     #group_input_001.Size -> grid.Size X
@@ -912,6 +913,7 @@ def geometry_nodes_002_node_group():
     geometry_nodes_002.links.new(math_001.outputs[0], random_value_005.inputs[6])
     #set_material_002.Geometry -> join_geometry.Geometry
     geometry_nodes_002.links.new(set_material_002.outputs[0], join_geometry.inputs[0])
+    
     
     return geometry_nodes_002
 
@@ -952,35 +954,32 @@ def add_star():
     return star
 
 def add_orbiting_planet(location, radius):
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=location)
-    planet = bpy.context.active_object
+    # Temporarily move 3D cursor to desired location
+    bpy.context.scene.cursor.location = location
+
+    # Create the base planet using working function
+    planet = create_planet()
+    planet.scale = (radius, radius, radius)
+    planet.location = location
     planet.name = f"OrbitingPlanet_{round(radius, 2)}"
 
-    # Add terrain modifier
-    modifier = planet.modifiers.new(name="PlanetTerrain", type='NODES')
-    modifier.node_group = geometry_nodes_001_node_group()
-
-    # Create placement plane
-    bpy.ops.mesh.primitive_plane_add(size=2, location=location)
-    plane = bpy.context.active_object
+    # Create placement plane for cube spawning
+    plane = create_placement_plane(planet)
+    plane.location = location
     plane.name = f"{planet.name}_PlacementPlane"
 
-    # Add placement modifier
-    modifier = plane.modifiers.new(name="PlanetObjectPlacer", type='NODES')
-    modifier.node_group = geometry_nodes_002_node_group()
-
-    # Link planet to Object Info
-    for node in modifier.node_group.nodes:
-        if node.name == "Object Info":
-            node.inputs[0].default_value = planet
-
-    # Link TestCube to Object Info.001
+    # Link TestCube to object placer
     cube = bpy.data.objects.get("TestCube")
     if cube:
-        for node in modifier.node_group.nodes:
-            if node.name == "Object Info.001":
-                node.inputs[0].default_value = cube
-        modifier["Input_4"] = cube
+        for modifier in plane.modifiers:
+            if modifier.name == "PlanetObjectPlacer":
+                for node in modifier.node_group.nodes:
+                    if node.name == "Object Info.001":
+                        node.inputs[0].default_value = cube
+                modifier["Input_4"] = cube
+                
+    planet.hide_viewport = True
+    planet.hide_render = True
 
 def create_orbiting_planets(n):
     for _ in range(n):
@@ -989,8 +988,9 @@ def create_orbiting_planets(n):
         x = math.cos(angle) * distance
         y = math.sin(angle) * distance
         z = 0
-        radius = random.uniform(0.5, 17.5)  # 1m–35m diameter
-        add_orbiting_planet((x, y, z), radius)
+        plane_radius = random.uniform(0.5, 17.5)  # used for plane size, not sphere scale
+        add_orbiting_planet((x, y, z), plane_radius)
+
 
 def create_full_planet_system(num_orbiting_planets=5):
     # --- Delete visible objects in the current view layer ---
@@ -1083,3 +1083,4 @@ if __name__ == "__main__":
 
 # Run this to regenerate
 create_full_planet_system(num_orbiting_planets=5)
+#create_planet_system()
