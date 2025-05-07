@@ -1,212 +1,351 @@
-import bpy
-import mathutils
+import bpy, mathutils
 
-def create_sphere_with_geometry_nodes():
-    # Create a UV sphere at origin
-    bpy.ops.mesh.primitive_uv_sphere_add(
-        radius=1.0,
-        location=(0, 0, 0),
-        scale=(1, 1, 1),
-        segments=64,
-        ring_count=32
+def create_planet():
+    # Create the planet sphere
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=(0, 0, 0))
+    planet = bpy.context.active_object
+    planet.name = "Planet"
+    
+    # Add the first geometry nodes modifier
+    modifier = planet.modifiers.new(name="PlanetTerrain", type='NODES')
+    modifier.node_group = geometry_nodes_001_node_group()
+    
+    return planet
+
+def create_placement_plane(planet):
+    # Create a plane for object placement
+    bpy.ops.mesh.primitive_plane_add(size=2, enter_editmode=False, align='WORLD', location=(0, 0, 0))
+    plane = bpy.context.active_object
+    plane.name = "PlanetPlacementPlane"
+    
+    # Add the second geometry nodes modifier
+    modifier = plane.modifiers.new(name="PlanetObjectPlacer", type='NODES')
+    modifier.node_group = geometry_nodes_002_node_group()
+    
+    # Set the planet as the input object
+    for node in modifier.node_group.nodes:
+        if node.name == "Object Info":
+            node.inputs[0].default_value = planet
+    
+    return plane
+
+def create_cube(name="TestCube", size=1):
+    import bpy
+
+    # Create the cube (trunk)
+    trunk_height = size
+    bpy.ops.mesh.primitive_cube_add(size=size, location=(0, 0, trunk_height / 2))
+    trunk = bpy.context.active_object
+    trunk.name = name + "_Trunk"
+
+    # Create the cone (foliage)
+    cone_height = size * 2
+    cone_radius = size * 1.2
+    bpy.ops.mesh.primitive_cone_add(
+        radius1=cone_radius,
+        depth=cone_height,
+        location=(0, 0, trunk_height + cone_height / 2)
     )
-    sphere = bpy.context.active_object
-    sphere.name = "Procedural_Sphere"
-    
-    # Create the geometry nodes modifier
-    modifier = sphere.modifiers.new(name="GeometryNodes", type='NODES')
-    
-    # Create the node group if it doesn't exist
-    if "Geometry Nodes.001" not in bpy.data.node_groups:
-        geometry_nodes_001 = geometry_nodes_001_node_group()
-    else:
-        geometry_nodes_001 = bpy.data.node_groups["Geometry Nodes.001"]
-    
-    # Assign the node group to the modifier
-    modifier.node_group = geometry_nodes_001
-    
-    return sphere
+    cone = bpy.context.active_object
+    cone.name = name + "_Foliage"
+
+    # Join cone and trunk into one object
+    bpy.context.view_layer.objects.active = trunk
+    cone.select_set(True)
+    trunk.select_set(True)
+    bpy.ops.object.join()
+
+    cube = bpy.context.active_object
+    cube.name = name
+
+    # Link the tree to the modifier and Object Info.001 input
+    plane = bpy.data.objects.get("PlanetPlacementPlane")
+    if plane:
+        for modifier in plane.modifiers:
+            if modifier.name == "PlanetObjectPlacer":
+                modifier["Input_4"] = cube
+                if modifier.node_group:
+                    for node in modifier.node_group.nodes:
+                        if node.name == "Object Info.001":
+                            node.inputs[0].default_value = cube
+
+    return cube
+
 
 def geometry_nodes_001_node_group():
-    geometry_nodes_001 = bpy.data.node_groups.new(type='GeometryNodeTree', name="Geometry Nodes.001")
+    geometry_nodes_001 = bpy.data.node_groups.new(type = 'GeometryNodeTree', name = "PlanetTerrainGenerator")
 
     geometry_nodes_001.color_tag = 'NONE'
     geometry_nodes_001.description = ""
     geometry_nodes_001.default_group_node_width = 140
+    
     geometry_nodes_001.is_modifier = True
 
-    # Interface
-    geometry_socket = geometry_nodes_001.interface.new_socket(name="Geometry", in_out='OUTPUT', socket_type='NodeSocketGeometry')
+    #geometry_nodes_001 interface
+    #Socket Geometry
+    geometry_socket = geometry_nodes_001.interface.new_socket(name = "Geometry", in_out='OUTPUT', socket_type = 'NodeSocketGeometry')
     geometry_socket.attribute_domain = 'POINT'
 
-    geometry_socket_1 = geometry_nodes_001.interface.new_socket(name="Geometry", in_out='INPUT', socket_type='NodeSocketGeometry')
+    #Socket Geometry
+    geometry_socket_1 = geometry_nodes_001.interface.new_socket(name = "Geometry", in_out='INPUT', socket_type = 'NodeSocketGeometry')
     geometry_socket_1.attribute_domain = 'POINT'
 
-    roughness_north_pole_socket = geometry_nodes_001.interface.new_socket(name="Roughness North Pole", in_out='INPUT', socket_type='NodeSocketFloat')
+    #Socket Roughness North Pole
+    roughness_north_pole_socket = geometry_nodes_001.interface.new_socket(name = "Roughness North Pole", in_out='INPUT', socket_type = 'NodeSocketFloat')
     roughness_north_pole_socket.default_value = 0.0
     roughness_north_pole_socket.min_value = 0.0
     roughness_north_pole_socket.max_value = 3.4028234663852886e+38
+    roughness_north_pole_socket.subtype = 'NONE'
+    roughness_north_pole_socket.attribute_domain = 'POINT'
 
-    roughness_equator_socket = geometry_nodes_001.interface.new_socket(name="Roughness Equator", in_out='INPUT', socket_type='NodeSocketFloat')
+    #Socket Roughness Equator
+    roughness_equator_socket = geometry_nodes_001.interface.new_socket(name = "Roughness Equator", in_out='INPUT', socket_type = 'NodeSocketFloat')
     roughness_equator_socket.default_value = 0.0
     roughness_equator_socket.min_value = 0.0
     roughness_equator_socket.max_value = 3.4028234663852886e+38
+    roughness_equator_socket.subtype = 'NONE'
+    roughness_equator_socket.attribute_domain = 'POINT'
 
-    roughness_south_pole_socket = geometry_nodes_001.interface.new_socket(name="Roughness South Pole", in_out='INPUT', socket_type='NodeSocketFloat')
+    #Socket Roughness South Pole
+    roughness_south_pole_socket = geometry_nodes_001.interface.new_socket(name = "Roughness South Pole", in_out='INPUT', socket_type = 'NodeSocketFloat')
     roughness_south_pole_socket.default_value = 0.0
     roughness_south_pole_socket.min_value = 0.0
     roughness_south_pole_socket.max_value = 3.402820018375656e+38
+    roughness_south_pole_socket.subtype = 'NONE'
+    roughness_south_pole_socket.attribute_domain = 'POINT'
 
-    # Create all nodes
+    #initialize geometry_nodes_001 nodes
+    #node Group Input
     group_input = geometry_nodes_001.nodes.new("NodeGroupInput")
+    group_input.name = "Group Input"
+
+    #node Group Output
     group_output = geometry_nodes_001.nodes.new("NodeGroupOutput")
-    
+    group_output.name = "Group Output"
+    group_output.is_active_output = True
+
+    #node Transform Geometry
     transform_geometry = geometry_nodes_001.nodes.new("GeometryNodeTransform")
     transform_geometry.name = "Transform Geometry"
     transform_geometry.mode = 'COMPONENTS'
+    #Translation
     transform_geometry.inputs[1].default_value = (0.0, 0.0, 0.0)
+    #Rotation
     transform_geometry.inputs[2].default_value = (0.0, 0.0, 0.0)
+    #Scale
     transform_geometry.inputs[3].default_value = (1.0, 1.0, 1.0)
 
+    #node Subdivide Mesh
     subdivide_mesh = geometry_nodes_001.nodes.new("GeometryNodeSubdivideMesh")
     subdivide_mesh.name = "Subdivide Mesh"
+    #Level
     subdivide_mesh.inputs[1].default_value = 3
 
+    #node Set Position
     set_position = geometry_nodes_001.nodes.new("GeometryNodeSetPosition")
     set_position.name = "Set Position"
+    #Selection
     set_position.inputs[1].default_value = True
+    #Position
     set_position.inputs[2].default_value = (0.0, 0.0, 0.0)
 
+    #node Distribute Points on Faces
     distribute_points_on_faces = geometry_nodes_001.nodes.new("GeometryNodeDistributePointsOnFaces")
     distribute_points_on_faces.name = "Distribute Points on Faces"
     distribute_points_on_faces.distribute_method = 'RANDOM'
     distribute_points_on_faces.use_legacy_normal = False
+    #Selection
     distribute_points_on_faces.inputs[1].default_value = True
+    #Density
     distribute_points_on_faces.inputs[4].default_value = 0.0
+    #Seed
     distribute_points_on_faces.inputs[6].default_value = 0
 
+    #node Cone
     cone = geometry_nodes_001.nodes.new("GeometryNodeMeshCone")
     cone.name = "Cone"
     cone.fill_type = 'NGON'
+    #Vertices
     cone.inputs[0].default_value = 3
+    #Side Segments
     cone.inputs[1].default_value = 1
+    #Fill Segments
     cone.inputs[2].default_value = 1
+    #Radius Top
     cone.inputs[3].default_value = 0.0
-    cone.inputs[4].default_value = 0.1
-    cone.inputs[5].default_value = 0.6
+    #Radius Bottom
+    cone.inputs[4].default_value = 0.10000000149011612
+    #Depth
+    cone.inputs[5].default_value = 0.6000000238418579
 
+    #node Instance on Points
     instance_on_points = geometry_nodes_001.nodes.new("GeometryNodeInstanceOnPoints")
     instance_on_points.name = "Instance on Points"
+    #Selection
     instance_on_points.inputs[1].default_value = True
+    #Pick Instance
     instance_on_points.inputs[3].default_value = False
+    #Instance Index
     instance_on_points.inputs[4].default_value = 0
 
+    #node Set Material
     set_material = geometry_nodes_001.nodes.new("GeometryNodeSetMaterial")
     set_material.name = "Set Material"
+    #Selection
     set_material.inputs[1].default_value = True
 
+    #node Set Material.001
     set_material_001 = geometry_nodes_001.nodes.new("GeometryNodeSetMaterial")
     set_material_001.name = "Set Material.001"
+    #Selection
     set_material_001.inputs[1].default_value = True
 
+    #node Rotate Instances
     rotate_instances = geometry_nodes_001.nodes.new("GeometryNodeRotateInstances")
     rotate_instances.name = "Rotate Instances"
+    #Selection
     rotate_instances.inputs[1].default_value = True
+    #Pivot Point
     rotate_instances.inputs[3].default_value = (0.0, 0.0, 0.0)
+    #Local Space
     rotate_instances.inputs[4].default_value = True
 
+    #node Realize Instances
     realize_instances = geometry_nodes_001.nodes.new("GeometryNodeRealizeInstances")
     realize_instances.name = "Realize Instances"
+    #Selection
     realize_instances.inputs[1].default_value = True
+    #Realize All
     realize_instances.inputs[2].default_value = True
+    #Depth
     realize_instances.inputs[3].default_value = 0
 
+    #node Join Geometry
     join_geometry = geometry_nodes_001.nodes.new("GeometryNodeJoinGeometry")
     join_geometry.name = "Join Geometry"
 
-    # Noise system with your updated parameters
+    #node Noise Texture
     noise_texture = geometry_nodes_001.nodes.new("ShaderNodeTexNoise")
     noise_texture.name = "Noise Texture"
     noise_texture.noise_dimensions = '3D'
     noise_texture.noise_type = 'FBM'
     noise_texture.normalize = True
+    #Vector
     noise_texture.inputs[0].default_value = (0.0, 0.0, 0.0)
-    noise_texture.inputs[3].default_value = 14.999999046325684  # Detail
-    noise_texture.inputs[4].default_value = 1.0  # Roughness
-    noise_texture.inputs[5].default_value = 0.3999999761581421  # Lacunarity
-    noise_texture.inputs[8].default_value = 1.7999999523162842  # Distortion
+    #Detail
+    noise_texture.inputs[3].default_value = 14.999999046325684
+    #Roughness
+    noise_texture.inputs[4].default_value = 1.0
+    #Lacunarity
+    noise_texture.inputs[5].default_value = 0.3999999761581421
+    #Distortion
+    noise_texture.inputs[8].default_value = 0.40000009536743164
 
+    #node Noise Texture.001
     noise_texture_001 = geometry_nodes_001.nodes.new("ShaderNodeTexNoise")
     noise_texture_001.name = "Noise Texture.001"
     noise_texture_001.noise_dimensions = '3D'
     noise_texture_001.noise_type = 'FBM'
     noise_texture_001.normalize = True
+    #Vector
     noise_texture_001.inputs[0].default_value = (0.0, 0.0, 0.0)
-    noise_texture_001.inputs[3].default_value = 15.0  # Detail
-    noise_texture_001.inputs[4].default_value = 0.7266666889190674  # Roughness
-    noise_texture_001.inputs[5].default_value = 0.09999999403953552  # Lacunarity
-    noise_texture_001.inputs[8].default_value = 0.7999999523162842  # Distortion
+    #Detail
+    noise_texture_001.inputs[3].default_value = 15.0
+    #Roughness
+    noise_texture_001.inputs[4].default_value = 0.7266666889190674
+    #Lacunarity
+    noise_texture_001.inputs[5].default_value = 0.09999999403953552
+    #Distortion
+    noise_texture_001.inputs[8].default_value = 0.7999999523162842
 
+    #node Noise Texture.002
     noise_texture_002 = geometry_nodes_001.nodes.new("ShaderNodeTexNoise")
     noise_texture_002.name = "Noise Texture.002"
     noise_texture_002.noise_dimensions = '3D'
     noise_texture_002.noise_type = 'FBM'
     noise_texture_002.normalize = True
+    #Vector
     noise_texture_002.inputs[0].default_value = (0.0, 0.0, 0.0)
-    noise_texture_002.inputs[3].default_value = 15.0  # Detail
-    noise_texture_002.inputs[4].default_value = 1.0  # Roughness
-    noise_texture_002.inputs[5].default_value = 0.2999999523162842  # Lacunarity
-    noise_texture_002.inputs[8].default_value = 2.0999999046325684  # Distortion
+    #Detail
+    noise_texture_002.inputs[3].default_value = 15.0
+    #Roughness
+    noise_texture_002.inputs[4].default_value = 1.0
+    #Lacunarity
+    noise_texture_002.inputs[5].default_value = 0.2999999523162842
+    #Distortion
+    noise_texture_002.inputs[8].default_value = 1.1999999284744263
 
+    #node Combine XYZ
     combine_xyz = geometry_nodes_001.nodes.new("ShaderNodeCombineXYZ")
     combine_xyz.name = "Combine XYZ"
 
+    #node Combine XYZ.001
     combine_xyz_001 = geometry_nodes_001.nodes.new("ShaderNodeCombineXYZ")
     combine_xyz_001.name = "Combine XYZ.001"
+    #X
     combine_xyz_001.inputs[0].default_value = 1.0
+    #Y
     combine_xyz_001.inputs[1].default_value = 1.0
 
+    #node Random Value
     random_value = geometry_nodes_001.nodes.new("FunctionNodeRandomValue")
     random_value.name = "Random Value"
     random_value.data_type = 'FLOAT'
+    #Min_001
     random_value.inputs[2].default_value = 1.0
+    #Max_001
     random_value.inputs[3].default_value = 2.0
+    #ID
     random_value.inputs[7].default_value = 0
+    #Seed
     random_value.inputs[8].default_value = 2
 
+    #node Random Value.001
     random_value_001 = geometry_nodes_001.nodes.new("FunctionNodeRandomValue")
     random_value_001.name = "Random Value.001"
     random_value_001.data_type = 'FLOAT'
+    #Min_001
     random_value_001.inputs[2].default_value = 2.0
+    #Max_001
     random_value_001.inputs[3].default_value = 8.0
+    #ID
     random_value_001.inputs[7].default_value = 0
+    #Seed
     random_value_001.inputs[8].default_value = 0
 
+    #node Math.001
     math_001 = geometry_nodes_001.nodes.new("ShaderNodeMath")
     math_001.name = "Math.001"
     math_001.operation = 'SINE'
     math_001.use_clamp = False
 
+    #node Math.002
     math_002 = geometry_nodes_001.nodes.new("ShaderNodeMath")
     math_002.name = "Math.002"
     math_002.operation = 'DIVIDE'
     math_002.use_clamp = False
 
+    #node Combine XYZ.002
     combine_xyz_002 = geometry_nodes_001.nodes.new("ShaderNodeCombineXYZ")
     combine_xyz_002.name = "Combine XYZ.002"
+    #Y
     combine_xyz_002.inputs[1].default_value = 0.0
+    #Z
     combine_xyz_002.inputs[2].default_value = 0.0
 
+    #node Scene Time
     scene_time = geometry_nodes_001.nodes.new("GeometryNodeInputSceneTime")
     scene_time.name = "Scene Time"
 
+    #node Math.003
     math_003 = geometry_nodes_001.nodes.new("ShaderNodeMath")
     math_003.name = "Math.003"
     math_003.operation = 'MULTIPLY'
     math_003.use_clamp = False
-    math_003.inputs[0].default_value = 0.39999961853027344  # Changed from -2.0 to positive value
+    #Value
+    math_003.inputs[0].default_value = 0.39999961853027344
 
-    # Set node locations (same as your latest version)
+    #Set locations
     group_input.location = (-3186.977294921875, -21.53408432006836)
     group_output.location = (1032.559326171875, 146.28684997558594)
     transform_geometry.location = (-2729.3271484375, 85.27590942382812)
@@ -233,7 +372,7 @@ def geometry_nodes_001_node_group():
     scene_time.location = (-526.57080078125, -121.29315185546875)
     math_003.location = (-2454.8173828125, -278.44610595703125)
 
-    # Set node dimensions (same as your latest version)
+    #Set dimensions
     group_input.width, group_input.height = 140.0, 100.0
     group_output.width, group_output.height = 140.0, 100.0
     transform_geometry.width, transform_geometry.height = 140.0, 100.0
@@ -260,41 +399,525 @@ def geometry_nodes_001_node_group():
     scene_time.width, scene_time.height = 140.0, 100.0
     math_003.width, math_003.height = 140.0, 100.0
 
-    # Create links (updated to match your latest node logic)
+    #initialize geometry_nodes_001 links
+    #group_input.Geometry -> transform_geometry.Geometry
     geometry_nodes_001.links.new(group_input.outputs[0], transform_geometry.inputs[0])
+    #transform_geometry.Geometry -> subdivide_mesh.Mesh
     geometry_nodes_001.links.new(transform_geometry.outputs[0], subdivide_mesh.inputs[0])
+    #subdivide_mesh.Mesh -> set_position.Geometry
     geometry_nodes_001.links.new(subdivide_mesh.outputs[0], set_position.inputs[0])
+    #noise_texture.Fac -> combine_xyz.Z
     geometry_nodes_001.links.new(noise_texture.outputs[0], combine_xyz.inputs[2])
+    #distribute_points_on_faces.Points -> instance_on_points.Points
     geometry_nodes_001.links.new(distribute_points_on_faces.outputs[0], instance_on_points.inputs[0])
+    #distribute_points_on_faces.Normal -> instance_on_points.Rotation
     geometry_nodes_001.links.new(distribute_points_on_faces.outputs[1], instance_on_points.inputs[5])
+    #cone.Mesh -> instance_on_points.Instance
     geometry_nodes_001.links.new(cone.outputs[0], instance_on_points.inputs[2])
+    #random_value.Value -> combine_xyz_001.Z
     geometry_nodes_001.links.new(random_value.outputs[1], combine_xyz_001.inputs[2])
+    #combine_xyz_001.Vector -> instance_on_points.Scale
     geometry_nodes_001.links.new(combine_xyz_001.outputs[0], instance_on_points.inputs[6])
+    #instance_on_points.Instances -> set_material.Geometry
     geometry_nodes_001.links.new(instance_on_points.outputs[0], set_material.inputs[0])
+    #set_material.Geometry -> rotate_instances.Instances
     geometry_nodes_001.links.new(set_material.outputs[0], rotate_instances.inputs[0])
+    #set_position.Geometry -> set_material_001.Geometry
     geometry_nodes_001.links.new(set_position.outputs[0], set_material_001.inputs[0])
+    #set_material_001.Geometry -> join_geometry.Geometry
     geometry_nodes_001.links.new(set_material_001.outputs[0], join_geometry.inputs[0])
+    #rotate_instances.Instances -> realize_instances.Geometry
     geometry_nodes_001.links.new(rotate_instances.outputs[0], realize_instances.inputs[0])
+    #join_geometry.Geometry -> group_output.Geometry
     geometry_nodes_001.links.new(join_geometry.outputs[0], group_output.inputs[0])
+    #scene_time.Seconds -> math_001.Value
     geometry_nodes_001.links.new(scene_time.outputs[0], math_001.inputs[0])
+    #math_001.Value -> math_002.Value
     geometry_nodes_001.links.new(math_001.outputs[0], math_002.inputs[0])
+    #random_value_001.Value -> math_002.Value
     geometry_nodes_001.links.new(random_value_001.outputs[1], math_002.inputs[1])
+    #math_002.Value -> combine_xyz_002.X
     geometry_nodes_001.links.new(math_002.outputs[0], combine_xyz_002.inputs[0])
+    #combine_xyz_002.Vector -> rotate_instances.Rotation
     geometry_nodes_001.links.new(combine_xyz_002.outputs[0], rotate_instances.inputs[2])
+    #group_input.Roughness Equator -> noise_texture_001.Scale
     geometry_nodes_001.links.new(group_input.outputs[2], noise_texture_001.inputs[2])
+    #group_input.Roughness South Pole -> noise_texture.Scale
     geometry_nodes_001.links.new(group_input.outputs[3], noise_texture.inputs[2])
+    #noise_texture_001.Fac -> math_003.Value
     geometry_nodes_001.links.new(noise_texture_001.outputs[0], math_003.inputs[1])
+    #math_003.Value -> combine_xyz.Y
     geometry_nodes_001.links.new(math_003.outputs[0], combine_xyz.inputs[1])
+    #combine_xyz.Vector -> set_position.Offset
     geometry_nodes_001.links.new(combine_xyz.outputs[0], set_position.inputs[3])
+    #noise_texture_002.Fac -> combine_xyz.X
     geometry_nodes_001.links.new(noise_texture_002.outputs[0], combine_xyz.inputs[0])
+    #group_input.Roughness North Pole -> noise_texture_002.Scale
     geometry_nodes_001.links.new(group_input.outputs[1], noise_texture_002.inputs[2])
+    #realize_instances.Geometry -> join_geometry.Geometry
     geometry_nodes_001.links.new(realize_instances.outputs[0], join_geometry.inputs[0])
-
     return geometry_nodes_001
 
-# Create the sphere with the modifier
-procedural_sphere = create_sphere_with_geometry_nodes()
+def geometry_nodes_002_node_group():
+    geometry_nodes_002 = bpy.data.node_groups.new(type = 'GeometryNodeTree', name = "PlanetObjectPlacer")
 
-# Optionally set the sphere as the active object
-bpy.context.view_layer.objects.active = procedural_sphere
-procedural_sphere.select_set(True)
+    geometry_nodes_002.color_tag = 'NONE'
+    geometry_nodes_002.description = ""
+    geometry_nodes_002.default_group_node_width = 140
+    
+    geometry_nodes_002.is_modifier = True
+    geometry_nodes_002.is_tool = True
+    geometry_nodes_002.is_mode_object = False
+    geometry_nodes_002.is_mode_edit = False
+    geometry_nodes_002.is_mode_sculpt = False
+    geometry_nodes_002.is_type_curve = False
+    geometry_nodes_002.is_type_mesh = False
+    geometry_nodes_002.is_type_point_cloud = False
+
+    #geometry_nodes_002 interface
+    #Socket Geometry
+    geometry_socket = geometry_nodes_002.interface.new_socket(name = "Geometry", in_out='OUTPUT', socket_type = 'NodeSocketGeometry')
+    geometry_socket.attribute_domain = 'POINT'
+
+    #Socket Size
+    size_socket = geometry_nodes_002.interface.new_socket(name = "Size", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    size_socket.default_value = 1.899999976158142
+    size_socket.min_value = 0.0
+    size_socket.max_value = 3.4028234663852886e+38
+    size_socket.subtype = 'DISTANCE'
+    size_socket.attribute_domain = 'POINT'
+
+    #Socket Distance Min
+    distance_min_socket = geometry_nodes_002.interface.new_socket(name = "Distance Min", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    distance_min_socket.default_value = 0.5
+    distance_min_socket.min_value = 0.0
+    distance_min_socket.max_value = 3.4028234663852886e+38
+    distance_min_socket.subtype = 'DISTANCE'
+    distance_min_socket.attribute_domain = 'POINT'
+
+    #Socket Density Max
+    density_max_socket = geometry_nodes_002.interface.new_socket(name = "Density Max", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    density_max_socket.default_value = 40.0
+    density_max_socket.min_value = 0.0
+    density_max_socket.max_value = 3.4028234663852886e+38
+    density_max_socket.subtype = 'NONE'
+    density_max_socket.attribute_domain = 'POINT'
+
+    #Socket Seed
+    seed_socket = geometry_nodes_002.interface.new_socket(name = "Seed", in_out='INPUT', socket_type = 'NodeSocketInt')
+    seed_socket.default_value = 0
+    seed_socket.min_value = -10000
+    seed_socket.max_value = 10000
+    seed_socket.subtype = 'NONE'
+    seed_socket.attribute_domain = 'POINT'
+
+    #Socket Collection
+    collection_socket = geometry_nodes_002.interface.new_socket(name = "Collection", in_out='INPUT', socket_type = 'NodeSocketObject')
+    collection_socket.attribute_domain = 'POINT'
+
+    #Socket Scale Min
+    scale_min_socket = geometry_nodes_002.interface.new_socket(name = "Scale Min", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    scale_min_socket.default_value = 0.0
+    scale_min_socket.min_value = -3.4028234663852886e+38
+    scale_min_socket.max_value = 3.4028234663852886e+38
+    scale_min_socket.subtype = 'NONE'
+    scale_min_socket.attribute_domain = 'POINT'
+
+    #Socket Scale Max
+    scale_max_socket = geometry_nodes_002.interface.new_socket(name = "Scale Max", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    scale_max_socket.default_value = 2.0999999046325684
+    scale_max_socket.min_value = -3.4028234663852886e+38
+    scale_max_socket.max_value = 3.4028234663852886e+38
+    scale_max_socket.subtype = 'NONE'
+    scale_max_socket.attribute_domain = 'POINT'
+
+    #Socket Flag Color
+    flag_color_socket = geometry_nodes_002.interface.new_socket(name = "Flag Color", in_out='INPUT', socket_type = 'NodeSocketMaterial')
+    flag_color_socket.attribute_domain = 'POINT'
+
+    #Socket Planet Color
+    planet_color_socket = geometry_nodes_002.interface.new_socket(name = "Planet Color", in_out='INPUT', socket_type = 'NodeSocketMaterial')
+    planet_color_socket.attribute_domain = 'POINT'
+
+    #initialize geometry_nodes_002 nodes
+    #node Group Output
+    group_output = geometry_nodes_002.nodes.new("NodeGroupOutput")
+    group_output.name = "Group Output"
+    group_output.is_active_output = True
+
+    #node Join Geometry
+    join_geometry = geometry_nodes_002.nodes.new("GeometryNodeJoinGeometry")
+    join_geometry.name = "Join Geometry"
+
+    #node Instance on Points
+    instance_on_points = geometry_nodes_002.nodes.new("GeometryNodeInstanceOnPoints")
+    instance_on_points.name = "Instance on Points"
+    #Selection
+    instance_on_points.inputs[1].default_value = True
+    #Pick Instance
+    instance_on_points.inputs[3].default_value = False
+    #Instance Index
+    instance_on_points.inputs[4].default_value = 0
+    #Scale
+    instance_on_points.inputs[6].default_value = (1.0, 1.0, 1.0)
+
+    #node Object Info.001
+    object_info_001 = geometry_nodes_002.nodes.new("GeometryNodeObjectInfo")
+    object_info_001.name = "Object Info.001"
+    object_info_001.transform_space = 'ORIGINAL'
+    #As Instance
+    object_info_001.inputs[1].default_value = False
+
+    #node Random Value.007
+    random_value_007 = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
+    random_value_007.name = "Random Value.007"
+    random_value_007.data_type = 'FLOAT_VECTOR'
+    #ID
+    random_value_007.inputs[7].default_value = 0
+    #Seed
+    random_value_007.inputs[8].default_value = 9
+
+    #node Set Material Index
+    set_material_index = geometry_nodes_002.nodes.new("GeometryNodeSetMaterialIndex")
+    set_material_index.name = "Set Material Index"
+    #Selection
+    set_material_index.inputs[1].default_value = True
+
+    #node Capture Attribute
+    capture_attribute = geometry_nodes_002.nodes.new("GeometryNodeCaptureAttribute")
+    capture_attribute.name = "Capture Attribute"
+    capture_attribute.active_index = 0
+    capture_attribute.capture_items.clear()
+    capture_attribute.capture_items.new('FLOAT', "Value")
+    capture_attribute.capture_items["Value"].data_type = 'FLOAT'
+    capture_attribute.domain = 'INSTANCE'
+
+    #node Instance on Points.001
+    instance_on_points_001 = geometry_nodes_002.nodes.new("GeometryNodeInstanceOnPoints")
+    instance_on_points_001.name = "Instance on Points.001"
+    #Pick Instance
+    instance_on_points_001.inputs[3].default_value = False
+
+    #node Realize Instances
+    realize_instances = geometry_nodes_002.nodes.new("GeometryNodeRealizeInstances")
+    realize_instances.name = "Realize Instances"
+    #Selection
+    realize_instances.inputs[1].default_value = True
+    #Realize All
+    realize_instances.inputs[2].default_value = True
+    #Depth
+    realize_instances.inputs[3].default_value = 0
+
+    #node Realize Instances.001
+    realize_instances_001 = geometry_nodes_002.nodes.new("GeometryNodeRealizeInstances")
+    realize_instances_001.name = "Realize Instances.001"
+    #Selection
+    realize_instances_001.inputs[1].default_value = True
+    #Realize All
+    realize_instances_001.inputs[2].default_value = True
+    #Depth
+    realize_instances_001.inputs[3].default_value = 0
+
+    #node Set Material.001
+    set_material_001 = geometry_nodes_002.nodes.new("GeometryNodeSetMaterial")
+    set_material_001.name = "Set Material.001"
+    #Selection
+    set_material_001.inputs[1].default_value = True
+
+    #node Random Value.001
+    random_value_001 = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
+    random_value_001.name = "Random Value.001"
+    random_value_001.data_type = 'INT'
+    #Min_002
+    random_value_001.inputs[4].default_value = 1
+    #Max_002
+    random_value_001.inputs[5].default_value = 3
+    #Seed
+    random_value_001.inputs[8].default_value = 0
+
+    #node Index
+    index = geometry_nodes_002.nodes.new("GeometryNodeInputIndex")
+    index.name = "Index"
+
+    #node Set Material.002
+    set_material_002 = geometry_nodes_002.nodes.new("GeometryNodeSetMaterial")
+    set_material_002.name = "Set Material.002"
+    #Selection
+    set_material_002.inputs[1].default_value = True
+
+    #node Combine XYZ
+    combine_xyz = geometry_nodes_002.nodes.new("ShaderNodeCombineXYZ")
+    combine_xyz.name = "Combine XYZ"
+    #Y
+    combine_xyz.inputs[1].default_value = 0.0
+    #Z
+    combine_xyz.inputs[2].default_value = 0.0
+
+    #node Random Value
+    random_value = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
+    random_value.name = "Random Value"
+    random_value.data_type = 'FLOAT'
+    #Min_001
+    random_value.inputs[2].default_value = 0.0
+    #Max_001
+    random_value.inputs[3].default_value = 1.0
+    #ID
+    random_value.inputs[7].default_value = 0
+    #Seed
+    random_value.inputs[8].default_value = 1
+
+    #node Transform Geometry.001
+    transform_geometry_001 = geometry_nodes_002.nodes.new("GeometryNodeTransform")
+    transform_geometry_001.name = "Transform Geometry.001"
+    transform_geometry_001.mode = 'COMPONENTS'
+    #Translation
+    transform_geometry_001.inputs[1].default_value = (0.0, 0.0, 0.0)
+    #Rotation
+    transform_geometry_001.inputs[2].default_value = (0.0, 0.0, 0.0)
+
+    #node Distribute Points on Faces
+    distribute_points_on_faces = geometry_nodes_002.nodes.new("GeometryNodeDistributePointsOnFaces")
+    distribute_points_on_faces.name = "Distribute Points on Faces"
+    distribute_points_on_faces.distribute_method = 'POISSON'
+    distribute_points_on_faces.use_legacy_normal = False
+    #Selection
+    distribute_points_on_faces.inputs[1].default_value = True
+    #Distance Min
+    distribute_points_on_faces.inputs[2].default_value = 5000.3994140625
+    #Density Max
+    distribute_points_on_faces.inputs[3].default_value = 0.8000001907348633
+    #Density Factor
+    distribute_points_on_faces.inputs[5].default_value = 1.0
+    #Seed
+    distribute_points_on_faces.inputs[6].default_value = 0
+
+    #node Object Info
+    object_info = geometry_nodes_002.nodes.new("GeometryNodeObjectInfo")
+    object_info.name = "Object Info"
+    object_info.transform_space = 'ORIGINAL'
+    # As Instance
+    object_info.inputs[1].default_value = False
+
+    #node Group Input.001
+    group_input_001 = geometry_nodes_002.nodes.new("NodeGroupInput")
+    group_input_001.name = "Group Input.001"
+
+    #node Grid
+    grid = geometry_nodes_002.nodes.new("GeometryNodeMeshGrid")
+    grid.name = "Grid"
+    #Vertices X
+    grid.inputs[2].default_value = 2
+    #Vertices Y
+    grid.inputs[3].default_value = 2
+
+    #node Distribute Points on Faces.001
+    distribute_points_on_faces_001 = geometry_nodes_002.nodes.new("GeometryNodeDistributePointsOnFaces")
+    distribute_points_on_faces_001.name = "Distribute Points on Faces.001"
+    distribute_points_on_faces_001.distribute_method = 'POISSON'
+    distribute_points_on_faces_001.use_legacy_normal = False
+    #Selection
+    distribute_points_on_faces_001.inputs[1].default_value = True
+    #Density Factor
+    distribute_points_on_faces_001.inputs[5].default_value = 1.0
+
+    #node Scene Time
+    scene_time = geometry_nodes_002.nodes.new("GeometryNodeInputSceneTime")
+    scene_time.name = "Scene Time"
+
+    #node Math
+    math = geometry_nodes_002.nodes.new("ShaderNodeMath")
+    math.name = "Math"
+    math.operation = 'POWER'
+    math.use_clamp = False
+    #Value_001
+    math.inputs[1].default_value = 0.9
+
+    #node Math.001
+    math_001 = geometry_nodes_002.nodes.new("ShaderNodeMath")
+    math_001.name = "Math.001"
+    math_001.operation = 'MULTIPLY'
+    math_001.use_clamp = False
+    #Value_001
+    math_001.inputs[1].default_value = 0.003000000026077032
+
+    #node Random Value.005
+    random_value_005 = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
+    random_value_005.name = "Random Value.005"
+    random_value_005.data_type = 'BOOLEAN'
+    #ID
+    random_value_005.inputs[7].default_value = 0
+
+    #node Random Value.006
+    random_value_006 = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
+    random_value_006.name = "Random Value.006"
+    random_value_006.data_type = 'FLOAT'
+    #Min_001
+    random_value_006.inputs[2].default_value = 0.0
+    #Max_001
+    random_value_006.inputs[3].default_value = 1.0
+    #ID
+    random_value_006.inputs[7].default_value = 0
+    #Seed
+    random_value_006.inputs[8].default_value = 0
+
+    #Set locations
+    group_output.location = (3097.005126953125, 421.7918395996094)
+    join_geometry.location = (2476.300048828125, 340.8503112792969)
+    instance_on_points.location = (-440.22442626953125, -106.68757629394531)
+    object_info_001.location = (469.8846130371094, -568.2789916992188)
+    random_value_007.location = (521.5838012695312, -1005.0852661132812)
+    set_material_index.location = (2036.3941650390625, -251.41989135742188)
+    capture_attribute.location = (1543.8597412109375, -259.3602294921875)
+    instance_on_points_001.location = (1236.3236083984375, -156.49606323242188)
+    realize_instances.location = (-246.6336212158203, 3.333569288253784)
+    realize_instances_001.location = (1777.056640625, -249.771728515625)
+    set_material_001.location = (471.2767639160156, 116.178955078125)
+    random_value_001.location = (1819.9619140625, -461.0506286621094)
+    index.location = (1079.156005859375, -480.76470947265625)
+    set_material_002.location = (2255.9990234375, -92.3603515625)
+    combine_xyz.location = (-657.6397705078125, -567.0027465820312)
+    random_value.location = (-1043.187744140625, -597.7901611328125)
+    transform_geometry_001.location = (-733.7864379882812, -165.15884399414062)
+    distribute_points_on_faces.location = (-738.1315307617188, 172.11691284179688)
+    object_info.location = (-1008.8260498046875, -254.1938018798828)
+    group_input_001.location = (-1365.7286376953125, -786.5611572265625)
+    grid.location = (-1031.822021484375, 68.04568481445312)
+    distribute_points_on_faces_001.location = (465.1046447753906, -289.7320251464844)
+    scene_time.location = (-46.963134765625, -804.6065063476562)
+    math.location = (392.6578674316406, -756.1470336914062)
+    math_001.location = (172.8000030517578, -761.4107666015625)
+    random_value_005.location = (566.895751953125, -836.0068359375)
+    random_value_006.location = (951.8902587890625, -799.7195434570312)
+
+    #Set dimensions
+    group_output.width, group_output.height = 140.0, 100.0
+    join_geometry.width, join_geometry.height = 140.0, 100.0
+    instance_on_points.width, instance_on_points.height = 140.0, 100.0
+    object_info_001.width, object_info_001.height = 140.0, 100.0
+    random_value_007.width, random_value_007.height = 140.0, 100.0
+    set_material_index.width, set_material_index.height = 140.0, 100.0
+    capture_attribute.width, capture_attribute.height = 140.0, 100.0
+    instance_on_points_001.width, instance_on_points_001.height = 140.0, 100.0
+    realize_instances.width, realize_instances.height = 140.0, 100.0
+    realize_instances_001.width, realize_instances_001.height = 140.0, 100.0
+    set_material_001.width, set_material_001.height = 140.0, 100.0
+    random_value_001.width, random_value_001.height = 140.0, 100.0
+    index.width, index.height = 140.0, 100.0
+    set_material_002.width, set_material_002.height = 140.0, 100.0
+    combine_xyz.width, combine_xyz.height = 140.0, 100.0
+    random_value.width, random_value.height = 140.0, 100.0
+    transform_geometry_001.width, transform_geometry_001.height = 140.0, 100.0
+    distribute_points_on_faces.width, distribute_points_on_faces.height = 170.0, 100.0
+    object_info.width, object_info.height = 140.0, 100.0
+    group_input_001.width, group_input_001.height = 140.0, 100.0
+    grid.width, grid.height = 140.0, 100.0
+    distribute_points_on_faces_001.width, distribute_points_on_faces_001.height = 170.0, 100.0
+    scene_time.width, scene_time.height = 140.0, 100.0
+    math.width, math.height = 140.0, 100.0
+    math_001.width, math_001.height = 140.0, 100.0
+    random_value_005.width, random_value_005.height = 140.0, 100.0
+    random_value_006.width, random_value_006.height = 140.0, 100.0
+
+    #initialize geometry_nodes_002 links
+    #transform_geometry_001.Geometry -> instance_on_points.Instance
+    geometry_nodes_002.links.new(transform_geometry_001.outputs[0], instance_on_points.inputs[2])
+    #random_value.Value -> combine_xyz.X
+    geometry_nodes_002.links.new(random_value.outputs[1], combine_xyz.inputs[0])
+    #combine_xyz.Vector -> instance_on_points.Rotation
+    geometry_nodes_002.links.new(combine_xyz.outputs[0], instance_on_points.inputs[5])
+    #object_info_001.Geometry -> instance_on_points_001.Instance
+    geometry_nodes_002.links.new(object_info_001.outputs[4], instance_on_points_001.inputs[2])
+    #distribute_points_on_faces_001.Points -> instance_on_points_001.Points
+    geometry_nodes_002.links.new(distribute_points_on_faces_001.outputs[0], instance_on_points_001.inputs[0])
+    #distribute_points_on_faces_001.Rotation -> instance_on_points_001.Rotation
+    geometry_nodes_002.links.new(distribute_points_on_faces_001.outputs[2], instance_on_points_001.inputs[5])
+    #index.Index -> capture_attribute.Value
+    geometry_nodes_002.links.new(index.outputs[0], capture_attribute.inputs[1])
+    #capture_attribute.Geometry -> realize_instances_001.Geometry
+    geometry_nodes_002.links.new(capture_attribute.outputs[0], realize_instances_001.inputs[0])
+    #capture_attribute.Value -> random_value_001.ID
+    geometry_nodes_002.links.new(capture_attribute.outputs[1], random_value_001.inputs[7])
+    #random_value_001.Value -> set_material_index.Material Index
+    geometry_nodes_002.links.new(random_value_001.outputs[2], set_material_index.inputs[2])
+    #set_material_001.Geometry -> join_geometry.Geometry
+    geometry_nodes_002.links.new(set_material_001.outputs[0], join_geometry.inputs[0])
+    #grid.Mesh -> distribute_points_on_faces.Mesh
+    geometry_nodes_002.links.new(grid.outputs[0], distribute_points_on_faces.inputs[0])
+    #join_geometry.Geometry -> group_output.Geometry
+    geometry_nodes_002.links.new(join_geometry.outputs[0], group_output.inputs[0])
+    #distribute_points_on_faces.Points -> instance_on_points.Points
+    geometry_nodes_002.links.new(distribute_points_on_faces.outputs[0], instance_on_points.inputs[0])
+    #instance_on_points_001.Instances -> capture_attribute.Geometry
+    geometry_nodes_002.links.new(instance_on_points_001.outputs[0], capture_attribute.inputs[0])
+    #realize_instances.Geometry -> distribute_points_on_faces_001.Mesh
+    geometry_nodes_002.links.new(realize_instances.outputs[0], distribute_points_on_faces_001.inputs[0])
+    #instance_on_points.Instances -> realize_instances.Geometry
+    geometry_nodes_002.links.new(instance_on_points.outputs[0], realize_instances.inputs[0])
+    #group_input_001.Distance Min -> distribute_points_on_faces_001.Distance Min
+    geometry_nodes_002.links.new(group_input_001.outputs[1], distribute_points_on_faces_001.inputs[2])
+    #group_input_001.Seed -> distribute_points_on_faces_001.Seed
+    geometry_nodes_002.links.new(group_input_001.outputs[3], distribute_points_on_faces_001.inputs[6])
+    #group_input_001.Seed -> random_value_005.Seed
+    geometry_nodes_002.links.new(group_input_001.outputs[3], random_value_005.inputs[8])
+    #random_value_005.Value -> instance_on_points_001.Selection
+    geometry_nodes_002.links.new(random_value_005.outputs[3], instance_on_points_001.inputs[1])
+    #random_value_006.Value -> instance_on_points_001.Instance Index
+    geometry_nodes_002.links.new(random_value_006.outputs[1], instance_on_points_001.inputs[4])
+    #group_input_001.Scale Min -> random_value_007.Min
+    geometry_nodes_002.links.new(group_input_001.outputs[5], random_value_007.inputs[0])
+    #group_input_001.Scale Max -> random_value_007.Max
+    geometry_nodes_002.links.new(group_input_001.outputs[6], random_value_007.inputs[1])
+    #random_value_007.Value -> instance_on_points_001.Scale
+    geometry_nodes_002.links.new(random_value_007.outputs[0], instance_on_points_001.inputs[6])
+    #realize_instances_001.Geometry -> set_material_index.Geometry
+    geometry_nodes_002.links.new(realize_instances_001.outputs[0], set_material_index.inputs[0])
+    #set_material_index.Geometry -> set_material_002.Geometry
+    geometry_nodes_002.links.new(set_material_index.outputs[0], set_material_002.inputs[0])
+    #group_input_001.Flag Color -> set_material_002.Material
+    geometry_nodes_002.links.new(group_input_001.outputs[7], set_material_002.inputs[2])
+    #realize_instances.Geometry -> set_material_001.Geometry
+    geometry_nodes_002.links.new(realize_instances.outputs[0], set_material_001.inputs[0])
+    #group_input_001.Planet Color -> set_material_001.Material
+    geometry_nodes_002.links.new(group_input_001.outputs[8], set_material_001.inputs[2])
+    #object_info.Geometry -> transform_geometry_001.Geometry
+    geometry_nodes_002.links.new(object_info.outputs[4], transform_geometry_001.inputs[0])
+    #group_input_001.Size -> transform_geometry_001.Scale
+    geometry_nodes_002.links.new(group_input_001.outputs[0], transform_geometry_001.inputs[3])
+    #group_input_001.Size -> grid.Size Y
+    geometry_nodes_002.links.new(group_input_001.outputs[0], grid.inputs[1])
+    #group_input_001.Size -> grid.Size X
+    geometry_nodes_002.links.new(group_input_001.outputs[0], grid.inputs[0])
+    #group_input_001.Density Max -> distribute_points_on_faces_001.Density Max
+    geometry_nodes_002.links.new(group_input_001.outputs[2], distribute_points_on_faces_001.inputs[3])
+    #math.Value -> random_value_005.Probability
+    geometry_nodes_002.links.new(math.outputs[0], random_value_005.inputs[6])
+    #math_001.Value -> math.Value
+    geometry_nodes_002.links.new(math_001.outputs[0], math.inputs[0])
+    #scene_time.Frame -> math_001.Value
+    geometry_nodes_002.links.new(scene_time.outputs[1], math_001.inputs[0])
+    #set_material_002.Geometry -> join_geometry.Geometry
+    geometry_nodes_002.links.new(set_material_002.outputs[0], join_geometry.inputs[0])
+    
+    return geometry_nodes_002
+
+def create_planet_system():
+    # Clear existing objects
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete()
+    
+    # Create the planet
+    planet = create_planet()
+    
+    # Create the placement plane
+    plane = create_placement_plane(planet)
+    
+    cube = create_cube()
+    
+    # Select the planet for viewing
+    bpy.context.view_layer.objects.active = planet
+    planet.select_set(True)
+    
+    print("Planet system created successfully!")
+
+# Run the script
+create_planet_system()
