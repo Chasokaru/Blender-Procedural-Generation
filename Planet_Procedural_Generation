@@ -947,28 +947,107 @@ def create_planet_system():
     
     print("Planet system created successfully!")
 
+def generate_planet_orbit_positions(star_location, num_planets, min_distance=200, spacing=100):
+    positions = []
+    for i in range(num_planets):
+        radius = min_distance + i * spacing
+        angle_deg = random.randint(0, 359)
+        angle_rad = math.radians(angle_deg)
+        x = star_location[0] + radius * math.cos(angle_rad)
+        y = star_location[1] + radius * math.sin(angle_rad)
+        z = 0
+        positions.append((x, y, z))
+    return positions
+
 def add_star():
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=25, location=(0, 0, 0))  # 50m diameter
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=25, location=(0, 0, 0))
     star = bpy.context.active_object
     star.name = "Star"
+
+    mat = bpy.data.materials.new(name="StarMaterial")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    for node in nodes:
+        nodes.remove(node)
+    emission = nodes.new(type='ShaderNodeEmission')
+    emission.inputs['Color'].default_value = (1, 0.6, 0.1, 1)
+    emission.inputs['Strength'].default_value = 500.0
+    output = nodes.new(type='ShaderNodeOutputMaterial')
+    links.new(emission.outputs['Emission'], output.inputs['Surface'])
+    star.data.materials.append(mat)
     return star
 
-def add_orbiting_planet(location, radius):
-    # Temporarily move 3D cursor to desired location
-    bpy.context.scene.cursor.location = location
+def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
+    max_tilt = 90.0
+    tilt_angle = random.uniform(0, max_tilt)
 
-    # Create the base planet using working function
+    # Exponential drop-off
+    k = math.log(2) / 30
+    chance = math.exp(-k * tilt_angle)
+
+    do_tilt = random.random() < chance
+    if do_tilt and random.random() < 0.5:
+        tilt_angle = -tilt_angle  # Flip direction randomly
+
+    actual_tilt = tilt_angle if do_tilt else 0.0
+
+    if create_mesh:
+        bpy.ops.curve.primitive_bezier_circle_add(radius=radius, location=(0, 0, 0))
+        ring = bpy.context.active_object
+        ring.name = name
+
+        if do_tilt:
+            ring.rotation_euler[1] = math.radians(tilt_angle)
+            print(f"Tilted {name} by {tilt_angle:.2f}° (chance: {chance:.2f})")
+        else:
+            print(f"{name} not tilted (angle would have been {tilt_angle:.2f}°)")
+
+        # Ring style setup
+        ring.data.fill_mode = 'FULL'
+        ring.data.bevel_depth = 0.2
+        ring.data.bevel_resolution = 3
+        ring.data.resolution_u = 64
+
+        # Emissive transparent material
+        mat = bpy.data.materials.new(name=f"{name}_Material")
+        mat.use_nodes = True
+        mat.blend_method = 'BLEND'
+        mat.use_backface_culling = False
+        mat.show_transparent_back = False
+
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        nodes.clear()
+
+        output = nodes.new("ShaderNodeOutputMaterial")
+        mix_shader = nodes.new("ShaderNodeMixShader")
+        emission = nodes.new("ShaderNodeEmission")
+        transparent = nodes.new("ShaderNodeBsdfTransparent")
+
+        emission.inputs["Color"].default_value = (0.8, 0.9, 1.0, 1.0)
+        emission.inputs["Strength"].default_value = 5.0
+        mix_shader.inputs["Fac"].default_value = 0.5
+
+        links.new(transparent.outputs[0], mix_shader.inputs[1])
+        links.new(emission.outputs[0], mix_shader.inputs[2])
+        links.new(mix_shader.outputs[0], output.inputs[0])
+
+        ring.data.materials.append(mat)
+
+    return actual_tilt
+
+
+
+def add_orbiting_planet(location, radius):
+    bpy.context.scene.cursor.location = location
     planet = create_planet()
     planet.scale = (radius, radius, radius)
     planet.location = location
     planet.name = f"OrbitingPlanet_{round(radius, 2)}"
-
-    # Create placement plane for cube spawning
     plane = create_placement_plane(planet)
     plane.location = location
     plane.name = f"{planet.name}_PlacementPlane"
-
-    # Link TestCube to object placer
     cube = bpy.data.objects.get("TestCube")
     if cube:
         for modifier in plane.modifiers:
@@ -977,23 +1056,39 @@ def add_orbiting_planet(location, radius):
                     if node.name == "Object Info.001":
                         node.inputs[0].default_value = cube
                 modifier["Input_4"] = cube
-                
     planet.hide_viewport = True
     planet.hide_render = True
 
 def create_orbiting_planets(n):
-    for _ in range(n):
+    used_radii = []
+    scene_props = bpy.context.scene.planet_generator_props
+    min_radius = scene_props.min_orbit_radius
+    max_radius = scene_props.max_orbit_radius
+    min_spacing = scene_props.min_orbit_spacing
+
+    for i in range(n):
+        while True:
+            radius = random.uniform(min_radius, max_radius)
+            if all(abs(radius - r) >= min_spacing for r in used_radii):
+                used_radii.append(radius)
+                break
+
+        # Determine orbit tilt angle
+        tilt_angle = create_orbit_ring(radius, name=f"OrbitRing_{i}", create_mesh=scene_props.show_orbit_rings)
+
         angle = random.uniform(0, 2 * math.pi)
-        distance = random.uniform(100, 1000)
-        x = math.cos(angle) * distance
-        y = math.sin(angle) * distance
+        x = math.cos(angle) * radius
+        y = math.sin(angle) * radius
         z = 0
-        plane_radius = random.uniform(0.5, 17.5)  # used for plane size, not sphere scale
+
+        rotated = mathutils.Matrix.Rotation(math.radians(tilt_angle), 4, 'Y') @ mathutils.Vector((x, y, z))
+        x, y, z = rotated.x, rotated.y, rotated.z
+
+        plane_radius = random.uniform(0.5, 17.5)
         add_orbiting_planet((x, y, z), plane_radius)
 
 
 def create_full_planet_system(num_orbiting_planets=5):
-    # --- Delete visible objects in the current view layer ---
     view_layer_objects = bpy.context.view_layer.objects
     for obj in view_layer_objects:
         obj.hide_set(False)
@@ -1001,20 +1096,16 @@ def create_full_planet_system(num_orbiting_planets=5):
         obj.hide_render = False
         obj.select_set(True)
     bpy.ops.object.delete()
-
-    # --- Optionally delete hidden/orphaned objects not in view layer ---
     for obj in bpy.data.objects:
         if obj.name not in bpy.context.view_layer.objects:
             bpy.data.objects.remove(obj, do_unlink=True)
-
-    # --- Regenerate ---
     add_star()
     cube = create_cube(name="TestCube")
     cube.hide_viewport = True
     cube.hide_render = True
     create_orbiting_planets(num_orbiting_planets)
     print("Full system generated with Star and orbiting planets.")
-    
+
 class PlanetGeneratorProperties(bpy.types.PropertyGroup):
     planet_count: bpy.props.IntProperty(
         name="Planet Count",
@@ -1023,21 +1114,45 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
         max=100
     )
     cube_density_min: bpy.props.FloatProperty(
-    name="Cube Density Min (%)",
-    description="Minimum percentage of cube coverage on a planet",
-    default=60.0,
-    min=0.0,
-    max=100.0
+        name="Cube Density Min (%)",
+        description="Minimum percentage of cube coverage on a planet",
+        default=60.0,
+        min=0.0,
+        max=100.0
     )
     cube_density_max: bpy.props.FloatProperty(
-    name="Cube Density Max (%)",
-    description="Maximum percentage of cube coverage on a planet",
-    default=100.0,
-    min=0.0,
-    max=100.0
-)
+        name="Cube Density Max (%)",
+        description="Maximum percentage of cube coverage on a planet",
+        default=100.0,
+        min=0.0,
+        max=100.0
+    )
+    show_orbit_rings: bpy.props.BoolProperty(
+        name="Show Orbit Rings",
+        description="Toggle visibility of orbit ring meshes",
+        default=True
+    )
+    min_orbit_spacing: bpy.props.FloatProperty(
+        name="Min Orbit Spacing (m)",
+        description="Minimum spacing between orbit rings",
+        default=40.0,
+        min=1.0,
+        max=1000.0
+    )
+    min_orbit_radius: bpy.props.FloatProperty(
+        name="Min Orbit Radius (m)",
+        description="Minimum orbit ring distance from the star",
+        default=100.0,
+        min=0.0
+    )
+    max_orbit_radius: bpy.props.FloatProperty(
+        name="Max Orbit Radius (m)",
+        description="Maximum orbit ring distance from the star",
+        default=10000.0,
+        min=0.0
+    )
 
-# Operator to regenerate planet system
+
 class GeneratePlanetSystemOperator(bpy.types.Operator):
     bl_idname = "object.generate_planet_system"
     bl_label = "Generate Planet System"
@@ -1048,7 +1163,6 @@ class GeneratePlanetSystemOperator(bpy.types.Operator):
         create_full_planet_system(num_orbiting_planets=props.planet_count)
         return {'FINISHED'}
 
-# UI Panel
 class PlanetGeneratorPanel(bpy.types.Panel):
     bl_label = "Planet Generator"
     bl_idname = "VIEW3D_PT_planet_generator"
@@ -1059,13 +1173,16 @@ class PlanetGeneratorPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         props = context.scene.planet_generator_props
-
         layout.prop(props, "planet_count")
         layout.operator("object.generate_planet_system", text="Generate Planet System")
         layout.prop(props, "cube_density_min")
         layout.prop(props, "cube_density_max")
+        layout.prop(props, "show_orbit_rings")
+        layout.prop(props, "planet_spacing_min")
+        layout.prop(props, "min_orbit_spacing")
+        layout.prop(props, "min_orbit_radius")
+        layout.prop(props, "max_orbit_radius")
 
-# Register classes
 def register():
     bpy.utils.register_class(PlanetGeneratorProperties)
     bpy.utils.register_class(GeneratePlanetSystemOperator)
@@ -1078,9 +1195,16 @@ def unregister():
     bpy.utils.unregister_class(PlanetGeneratorPanel)
     del bpy.types.Scene.planet_generator_props
 
+def configure_scene():
+    bpy.context.scene.render.engine = 'CYCLES'
+    for area in bpy.context.screen.areas:
+        if area.type == 'VIEW_3D':
+            for space in area.spaces:
+                if space.type == 'VIEW_3D':
+                    space.clip_end = 100000
+                    print("Set viewport clip_end to 100000")
+
 if __name__ == "__main__":
     register()
-
-# Run this to regenerate
-create_full_planet_system(num_orbiting_planets=5)
-#create_planet_system()
+    configure_scene()
+    create_full_planet_system(num_orbiting_planets=5)
