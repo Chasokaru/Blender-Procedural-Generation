@@ -1,5 +1,5 @@
 import bpy, mathutils, random
-import math
+import math, colorsys
 
 star_properties = {
     'O':          {'radius': 2500.0, 'luminosity': 100000},
@@ -1147,8 +1147,15 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
         emission = nodes.new("ShaderNodeEmission")
         transparent = nodes.new("ShaderNodeBsdfTransparent")
 
-        emission.inputs["Color"].default_value = (0.8, 0.9, 1.0, 1.0)
-        emission.inputs["Strength"].default_value = 5.0
+        use_default = bpy.context.scene.planet_generator_props.use_default_orbit_color
+        if use_default:
+            emission.inputs["Color"].default_value = (0.8, 0.9, 1.0, 1.0)
+        else:
+            hue = bpy.context.scene.planet_generator_props.orbit_ring_hue
+            r, g, b = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+            emission.inputs["Color"].default_value = (r, g, b, 1.0)
+
+        emission.inputs["Strength"].default_value = bpy.context.scene.planet_generator_props.orbit_ring_luminosity
         mix_shader.inputs["Fac"].default_value = 0.5
 
         links.new(transparent.outputs[0], mix_shader.inputs[1])
@@ -1265,7 +1272,7 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
     max_orbit_radius: bpy.props.FloatProperty(
         name="Max Orbit Radius (m)",
         description="Maximum orbit ring distance from the star",
-        default=10000.0,
+        default=5000.0,
         min=0.0
     )
     star_class: bpy.props.EnumProperty(
@@ -1298,6 +1305,30 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
         description="Set all stars to fixed low brightness (5.0) for easier color visibility",
         default=False
     )
+    use_default_orbit_color: bpy.props.BoolProperty(
+        name="Use Default Orbit Ring Color",
+        description="Use the default blue-white orbit ring color instead of hue-based",
+        default=True
+    )
+
+    orbit_ring_hue: bpy.props.FloatProperty(
+        name="Orbit Ring Hue",
+        description="Hue value (0.0 and 1.0 - red, 0.33 - green, 0.66 - blue) for orbit ring color",
+        default=0.55,
+        min=0.0,
+        max=1.0,
+        subtype='FACTOR'
+    )
+    orbit_ring_luminosity: bpy.props.FloatProperty(
+    name="Orbit Ring Luminosity",
+    description="Controls how bright the orbit ring glow is",
+    default=5.0,
+    min=0.1,
+    max=10.0,
+    subtype='FACTOR'
+    )
+
+
 
 class GeneratePlanetSystemOperator(bpy.types.Operator):
     bl_idname = "object.generate_planet_system"
@@ -1338,6 +1369,14 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         row = layout.row()
         row.enabled = not props.enable_unrealism
         row.prop(props, "no_brightness")
+        
+        layout.label(text="Orbit Ring Appearance:")
+        layout.prop(props, "use_default_orbit_color")
+
+        row = layout.row()
+        row.enabled = not props.use_default_orbit_color
+        row.prop(props, "orbit_ring_hue")
+        layout.prop(props, "orbit_ring_luminosity")
 
 def register():
     bpy.utils.register_class(PlanetGeneratorProperties)
