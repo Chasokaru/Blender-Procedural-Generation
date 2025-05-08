@@ -1,6 +1,21 @@
 import bpy, mathutils, random
 import math
 
+star_properties = {
+    'O':          {'radius': 2500.0, 'luminosity': 100000},
+    'B':          {'radius': 500.0,  'luminosity': 1000},
+    'A':          {'radius': 170.0,  'luminosity': 20},
+    'F':          {'radius': 127.5,  'luminosity': 4},
+    'G':          {'radius': 100.0,  'luminosity': 1},
+    'K':          {'radius': 80.0,   'luminosity': 0.2},
+    'M':          {'radius': 50.0,   'luminosity': 0.01},
+    'Giant':      {'radius': 1666.5, 'luminosity': 50},
+    'D':          {'radius': 1.65,   'luminosity': 0.01},
+    'Supergiant': {'radius': 5000.0, 'luminosity': 30000},
+    'WR':         {'radius': 2000.0, 'luminosity': 100000}
+}
+
+
 def create_planet():
     # Create the planet sphere
     bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=(0, 0, 0))
@@ -959,24 +974,68 @@ def generate_planet_orbit_positions(star_location, num_planets, min_distance=200
         positions.append((x, y, z))
     return positions
 
-def add_star():
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=25, location=(0, 0, 0))
-    star = bpy.context.active_object
-    star.name = "Star"
+def get_star_color(star_class):
+    return {
+        'O': (0.4, 0.6, 1.0, 1.0),    # Blue
+        'B': (0.6, 0.75, 1.0, 1.0),   # Blue-white
+        'A': (0.8, 0.85, 1.0, 1.0),   # White
+        'F': (1.0, 1.0, 0.9, 1.0),    # Yellow-white
+        'G': (1.0, 0.9, 0.6, 1.0),    # Yellow
+        'K': (1.0, 0.6, 0.3, 1.0),    # Orange
+        'M': (1.0, 0.2, 0.2, 1.0),    # Red
+        'WR': (1.0, 0.2, 0.6, 1.0),   # Magenta / pink
+        'D': (0.9, 0.9, 1.0, 1.0),    # White dwarf
+        'Giant': (1.0, 0.8, 0.3, 1.0),# Variable (orange-yellow)
+        'Supergiant': (1.0, 0.5, 0.5, 1.0) # Variable (red-orange)
+    }.get(star_class, (1.0, 1.0, 1.0, 1.0))  # Fallback white
 
-    mat = bpy.data.materials.new(name="StarMaterial")
+
+def select_star_class():
+    classes = ['M', 'K', 'G', 'F', 'A', 'B', 'O', 'WR', 'D', 'Giant', 'Supergiant']
+    weights = [80, 8, 3.5, 2, 0.7, 0.1, 0.00001, 0.000001, 5, 0.4, 0.0001]
+    total = sum(weights)
+    probabilities = [w / total for w in weights]
+    return random.choices(classes, probabilities)[0]
+
+def add_star(star_class=None):
+    props = bpy.context.scene.planet_generator_props
+
+    if star_class is None or star_class == 'RANDOM':
+        star_class = select_star_class()
+
+    props_data = star_properties[star_class]
+    color = get_star_color(star_class)
+
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=props_data['radius'], location=(0, 0, 0))
+    star = bpy.context.active_object
+    star.name = f"Star_{star_class}"
+
+    mat = bpy.data.materials.new(name=f"StarMaterial_{star_class}")
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
-    for node in nodes:
-        nodes.remove(node)
+    nodes.clear()
+
     emission = nodes.new(type='ShaderNodeEmission')
-    emission.inputs['Color'].default_value = (1, 0.6, 0.1, 1)
-    emission.inputs['Strength'].default_value = 500.0
+    emission.inputs['Color'].default_value = color
+
+    # Compute brightness based on user toggles
+    if props.no_brightness:
+        strength = 5.0
+    elif props.enable_unrealism:
+        strength = props_data['luminosity'] * 100
+    else:
+        strength = props_data['luminosity'] * 1000
+
+    emission.inputs['Strength'].default_value = strength
+
     output = nodes.new(type='ShaderNodeOutputMaterial')
     links.new(emission.outputs['Emission'], output.inputs['Surface'])
+
     star.data.materials.append(mat)
-    return star
+
+    print(f"Generated {star_class}-class star (unrealism: {props.enable_unrealism}, no brightness: {props.no_brightness})")
+
 
 def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
     max_tilt = 90.0
@@ -1037,8 +1096,6 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
 
     return actual_tilt
 
-
-
 def add_orbiting_planet(location, radius):
     bpy.context.scene.cursor.location = location
     planet = create_planet()
@@ -1089,22 +1146,19 @@ def create_orbiting_planets(n):
 
 
 def create_full_planet_system(num_orbiting_planets=5):
-    view_layer_objects = bpy.context.view_layer.objects
-    for obj in view_layer_objects:
-        obj.hide_set(False)
-        obj.hide_viewport = False
-        obj.hide_render = False
-        obj.select_set(True)
-    bpy.ops.object.delete()
+    clean_scene()
+    
     for obj in bpy.data.objects:
         if obj.name not in bpy.context.view_layer.objects:
             bpy.data.objects.remove(obj, do_unlink=True)
-    add_star()
     cube = create_cube(name="TestCube")
     cube.hide_viewport = True
     cube.hide_render = True
     create_orbiting_planets(num_orbiting_planets)
     print("Full system generated with Star and orbiting planets.")
+    
+    props = bpy.context.scene.planet_generator_props
+    add_star(props.star_class)
 
 class PlanetGeneratorProperties(bpy.types.PropertyGroup):
     planet_count: bpy.props.IntProperty(
@@ -1151,7 +1205,35 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
         default=10000.0,
         min=0.0
     )
-
+    star_class: bpy.props.EnumProperty(
+    name="Star Class",
+    description="Select the spectral class of the star",
+    items=[
+        ('RANDOM', 'Random', 'Randomly select a star class based on real-world distribution'),
+        ('O', 'O (Blue)', 'Massive, hot, and rare'),
+        ('B', 'B (Blue-White)', 'Very luminous and hot'),
+        ('A', 'A (White)', 'Bright white star'),
+        ('F', 'F (Yellow-White)', 'Warm yellow-white star'),
+        ('G', 'G (Yellow)', 'Sun-like star'),
+        ('K', 'K (Orange)', 'Cooler orange star'),
+        ('M', 'M (Red)', 'Small, cool, and most common'),
+        ('D', 'D (White Dwarf)', 'Extremely hot and dense remnant'),
+        ('Giant', 'G (Giant)', 'Large, luminous evolved star'),
+        ('Supergiant', 'S (Supergiant)', 'Enormous and rare star'),
+        ('WR', 'WR (Wolf–Rayet)', 'Evolved massive star with strong winds')
+    ],
+    default='RANDOM'
+    )
+    enable_unrealism: bpy.props.BoolProperty(
+        name="Unrealism Mode",
+        description="Tone down luminosity to better visualize star colors",
+        default=False
+    )
+    no_brightness: bpy.props.BoolProperty(
+        name="No Brightness",
+        description="Set all stars to fixed low brightness (5.0) for easier color visibility",
+        default=False
+    )
 
 class GeneratePlanetSystemOperator(bpy.types.Operator):
     bl_idname = "object.generate_planet_system"
@@ -1182,6 +1264,16 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         layout.prop(props, "min_orbit_spacing")
         layout.prop(props, "min_orbit_radius")
         layout.prop(props, "max_orbit_radius")
+        layout.prop(props, "star_class")
+        layout.label(text="Brightness Modes:")
+        
+        row = layout.row()
+        row.enabled = not props.no_brightness
+        row.prop(props, "enable_unrealism")
+
+        row = layout.row()
+        row.enabled = not props.enable_unrealism
+        row.prop(props, "no_brightness")
 
 def register():
     bpy.utils.register_class(PlanetGeneratorProperties)
@@ -1203,6 +1295,26 @@ def configure_scene():
                 if space.type == 'VIEW_3D':
                     space.clip_end = 100000
                     print("Set viewport clip_end to 100000")
+                
+def clean_scene():
+    # Unlink and remove all objects from all collections
+    for obj in list(bpy.data.objects):
+        for coll in obj.users_collection:
+            coll.objects.unlink(obj)
+        bpy.data.objects.remove(obj, do_unlink=True)
+
+    # Remove unused data blocks
+    for block in (
+        bpy.data.meshes,
+        bpy.data.curves,
+        bpy.data.materials,
+        bpy.data.collections
+    ):
+        for datablock in block:
+            if datablock.users == 0:
+                block.remove(datablock)
+
+    print("Scene cleaned.")
 
 if __name__ == "__main__":
     register()
