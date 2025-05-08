@@ -92,8 +92,6 @@ def create_cube(name="TestCube", size=1):
 
 
 def geometry_nodes_001_node_group():
-    if "PlanetTerrainGenerator" in bpy.data.node_groups:
-        return bpy.data.node_groups["PlanetTerrainGenerator"]
     
     geometry_nodes_001 = bpy.data.node_groups.new(type = 'GeometryNodeTree', name = "PlanetTerrainGenerator")
 
@@ -484,9 +482,6 @@ def geometry_nodes_001_node_group():
     return geometry_nodes_001
 
 def geometry_nodes_002_node_group():
-    group_name = "PlanetObjectPlacer"
-    if group_name in bpy.data.node_groups:
-        return bpy.data.node_groups[group_name]
     geometry_nodes_002 = bpy.data.node_groups.new(type = 'GeometryNodeTree', name = "PlanetObjectPlacer")
 
     geometry_nodes_002.color_tag = 'NONE'
