@@ -47,7 +47,8 @@ def create_placement_plane(planet):
     return plane
 
 def create_cube(name="TestCube", size=1):
-    import bpy
+    if name in bpy.data.objects:
+        return bpy.data.objects[name]
 
     # Create the cube (trunk)
     trunk_height = size
@@ -89,7 +90,11 @@ def create_cube(name="TestCube", size=1):
     return cube
 
 
+
 def geometry_nodes_001_node_group():
+    if "PlanetTerrainGenerator" in bpy.data.node_groups:
+        return bpy.data.node_groups["PlanetTerrainGenerator"]
+    
     geometry_nodes_001 = bpy.data.node_groups.new(type = 'GeometryNodeTree', name = "PlanetTerrainGenerator")
 
     geometry_nodes_001.color_tag = 'NONE'
@@ -479,6 +484,9 @@ def geometry_nodes_001_node_group():
     return geometry_nodes_001
 
 def geometry_nodes_002_node_group():
+    group_name = "PlanetObjectPlacer"
+    if group_name in bpy.data.node_groups:
+        return bpy.data.node_groups[group_name]
     geometry_nodes_002 = bpy.data.node_groups.new(type = 'GeometryNodeTree', name = "PlanetObjectPlacer")
 
     geometry_nodes_002.color_tag = 'NONE'
@@ -975,6 +983,35 @@ def generate_planet_orbit_positions(star_location, num_planets, min_distance=200
         positions.append((x, y, z))
     return positions
 
+def get_orbit_material(name, color, strength):
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
+
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    nodes.clear()
+
+    output = nodes.new("ShaderNodeOutputMaterial")
+    mix_shader = nodes.new("ShaderNodeMixShader")
+    emission = nodes.new("ShaderNodeEmission")
+    transparent = nodes.new("ShaderNodeBsdfTransparent")
+
+    emission.inputs["Color"].default_value = color
+    emission.inputs["Strength"].default_value = strength
+    mix_shader.inputs["Fac"].default_value = 0.5
+
+    links.new(transparent.outputs[0], mix_shader.inputs[1])
+    links.new(emission.outputs[0], mix_shader.inputs[2])
+    links.new(mix_shader.outputs[0], output.inputs[0])
+
+    mat.blend_method = 'BLEND'
+    mat.use_backface_culling = False
+    mat.show_transparent_back = False
+    return mat
+
+
 def get_star_color(star_class):
     return {
         'O': (0.4, 0.6, 1.0, 1.0),    # Blue
@@ -998,6 +1035,14 @@ def select_star_class():
     total = sum(weights)
     probabilities = [w / total for w in weights]
     return random.choices(classes, probabilities)[0]
+
+def remove_old_beams(star_name):
+    for obj in bpy.data.objects:
+        if obj.name.startswith(f"{star_name}_Beam_"):
+            try:
+                bpy.data.objects.remove(obj, do_unlink=True)
+            except:
+                pass
 
 def create_beam_material():
     mat = bpy.data.materials.new(name="NeutronBeam_MAT")
@@ -1033,11 +1078,12 @@ def create_beam_material():
     return mat
 
 def add_neutron_star_beams(star_obj, star_radius):
+    remove_old_beams(star_obj.name)
     mat = create_beam_material()
 
     for direction in [1, -1]:  # +Z and -Z
         bpy.ops.mesh.primitive_cone_add(
-            vertices=64,
+            vertices=12,
             radius1=0.1 * star_radius,    # same width
             radius2=0.0,
             depth=100 * star_radius,      # 5× longer
@@ -1132,35 +1178,13 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
         ring.data.resolution_u = 64
 
         # Emissive transparent material
-        mat = bpy.data.materials.new(name=f"{name}_Material")
-        mat.use_nodes = True
-        mat.blend_method = 'BLEND'
-        mat.use_backface_culling = False
-        mat.show_transparent_back = False
+        props = bpy.context.scene.planet_generator_props
+        use_default = props.use_default_orbit_color
+        hue = props.orbit_ring_hue
+        luminosity = props.orbit_ring_luminosity
 
-        nodes = mat.node_tree.nodes
-        links = mat.node_tree.links
-        nodes.clear()
-
-        output = nodes.new("ShaderNodeOutputMaterial")
-        mix_shader = nodes.new("ShaderNodeMixShader")
-        emission = nodes.new("ShaderNodeEmission")
-        transparent = nodes.new("ShaderNodeBsdfTransparent")
-
-        use_default = bpy.context.scene.planet_generator_props.use_default_orbit_color
-        if use_default:
-            emission.inputs["Color"].default_value = (0.8, 0.9, 1.0, 1.0)
-        else:
-            hue = bpy.context.scene.planet_generator_props.orbit_ring_hue
-            r, g, b = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
-            emission.inputs["Color"].default_value = (r, g, b, 1.0)
-
-        emission.inputs["Strength"].default_value = bpy.context.scene.planet_generator_props.orbit_ring_luminosity
-        mix_shader.inputs["Fac"].default_value = 0.5
-
-        links.new(transparent.outputs[0], mix_shader.inputs[1])
-        links.new(emission.outputs[0], mix_shader.inputs[2])
-        links.new(mix_shader.outputs[0], output.inputs[0])
+        color = (0.8, 0.9, 1.0, 1.0) if use_default else colorsys.hsv_to_rgb(hue, 1.0, 1.0) + (1.0,)
+        mat = get_orbit_material(f"{name}_Material", color, luminosity)
 
         ring.data.materials.append(mat)
 
@@ -1218,17 +1242,15 @@ def create_orbiting_planets(n):
 def create_full_planet_system(num_orbiting_planets=5):
     clean_scene()
     
-    for obj in bpy.data.objects:
-        if obj.name not in bpy.context.view_layer.objects:
-            bpy.data.objects.remove(obj, do_unlink=True)
     cube = create_cube(name="TestCube")
     cube.hide_viewport = True
     cube.hide_render = True
-    create_orbiting_planets(num_orbiting_planets)
-    print("Full system generated with Star and orbiting planets.")
-    
+
     props = bpy.context.scene.planet_generator_props
-    add_star(props.star_class)
+    add_star(props.star_class)  # Place star first
+
+    create_orbiting_planets(num_orbiting_planets)  # Then create planets that orbit it
+    print("Full system generated with Star and orbiting planets.")
 
 class PlanetGeneratorProperties(bpy.types.PropertyGroup):
     planet_count: bpy.props.IntProperty(
@@ -1322,7 +1344,7 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
     orbit_ring_luminosity: bpy.props.FloatProperty(
     name="Orbit Ring Luminosity",
     description="Controls how bright the orbit ring glow is",
-    default=5.0,
+    default=3.0,
     min=0.1,
     max=10.0,
     subtype='FACTOR'
@@ -1398,28 +1420,60 @@ def configure_scene():
                 if space.type == 'VIEW_3D':
                     space.clip_end = 100000
                     print("Set viewport clip_end to 100000")
-                
+                    
 def clean_scene():
-    # Unlink and remove all objects from all collections
+    # Step 1: Unlink and remove all objects
     for obj in list(bpy.data.objects):
-        for coll in obj.users_collection:
-            coll.objects.unlink(obj)
-        bpy.data.objects.remove(obj, do_unlink=True)
+        try:
+            for coll in obj.users_collection:
+                coll.objects.unlink(obj)
+            bpy.data.objects.remove(obj, do_unlink=True)
+        except:
+            pass
 
-    # Remove unused data blocks
-    for block in (
+    # Step 2: Remove all collections (except master scene collection)
+    for coll in list(bpy.data.collections):
+        if coll.users == 0:
+            bpy.data.collections.remove(coll)
+
+    # Step 3: Remove unused datablocks (including images, materials, meshes, curves, etc.)
+    clean_data_blocks()
+
+    # Step 4: Orphan purge – run multiple times to fully free memory
+    for _ in range(5):
+        try:
+            bpy.ops.outliner.orphans_purge(do_recursive=True)
+        except RuntimeError:
+            break
+
+    print("Scene fully cleaned.")
+
+
+def clean_data_blocks():
+    data_groups = [
         bpy.data.meshes,
         bpy.data.curves,
         bpy.data.materials,
-        bpy.data.collections
-    ):
-        for datablock in block:
-            if datablock.users == 0:
-                block.remove(datablock)
+        bpy.data.node_groups,
+        bpy.data.images,
+        bpy.data.textures,
+        bpy.data.cameras,
+        bpy.data.lights,
+        bpy.data.grease_pencils,
+        bpy.data.fonts,
+        bpy.data.metaballs,
+        bpy.data.armatures,
+    ]
+    for group in data_groups:
+        for block in list(group):
+            if block.users == 0:
+                try:
+                    group.remove(block)
+                except:
+                    pass
 
-    print("Scene cleaned.")
 
 if __name__ == "__main__":
     register()
     configure_scene()
-    create_full_planet_system(num_orbiting_planets=5)
+    create_full_planet_system()
