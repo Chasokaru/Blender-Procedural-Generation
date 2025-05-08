@@ -12,7 +12,8 @@ star_properties = {
     'Giant':      {'radius': 1666.5, 'luminosity': 50},
     'D':          {'radius': 1.65,   'luminosity': 0.01},
     'Supergiant': {'radius': 5000.0, 'luminosity': 30000},
-    'WR':         {'radius': 2000.0, 'luminosity': 100000}
+    'WR':         {'radius': 2000.0, 'luminosity': 100000},
+    'NS':         {'radius': 0.8,    'luminosity': 0.02}
 }
 
 
@@ -986,7 +987,8 @@ def get_star_color(star_class):
         'WR': (1.0, 0.2, 0.6, 1.0),   # Magenta / pink
         'D': (0.9, 0.9, 1.0, 1.0),    # White dwarf
         'Giant': (1.0, 0.8, 0.3, 1.0),# Variable (orange-yellow)
-        'Supergiant': (1.0, 0.5, 0.5, 1.0) # Variable (red-orange)
+        'Supergiant': (1.0, 0.5, 0.5, 1.0), # Variable (red-orange)
+        'NS': (1.0, 1.0, 1.0, 1.0)  # Bright white
     }.get(star_class, (1.0, 1.0, 1.0, 1.0))  # Fallback white
 
 
@@ -996,6 +998,64 @@ def select_star_class():
     total = sum(weights)
     probabilities = [w / total for w in weights]
     return random.choices(classes, probabilities)[0]
+
+def create_beam_material():
+    mat = bpy.data.materials.new(name="NeutronBeam_MAT")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+
+    # Clear existing nodes
+    for node in nodes:
+        nodes.remove(node)
+
+    output = nodes.new(type='ShaderNodeOutputMaterial')
+    emission = nodes.new(type='ShaderNodeEmission')
+    transparent = nodes.new(type='ShaderNodeBsdfTransparent')
+    mix_shader = nodes.new(type='ShaderNodeMixShader')
+
+    emission.location = (-300, 100)
+    transparent.location = (-300, -100)
+    mix_shader.location = (-100, 0)
+    output.location = (200, 0)
+
+    emission.inputs['Color'].default_value = (0.6, 0.9, 1.0, 1)
+    emission.inputs['Strength'].default_value = 50.0  
+
+    mix_shader.inputs['Fac'].default_value = 0.9  # 90% transparent
+
+    links.new(emission.outputs[0], mix_shader.inputs[2])
+    links.new(transparent.outputs[0], mix_shader.inputs[1])
+    links.new(mix_shader.outputs[0], output.inputs['Surface'])
+
+    mat.blend_method = 'BLEND'
+
+    return mat
+
+def add_neutron_star_beams(star_obj, star_radius):
+    mat = create_beam_material()
+
+    for direction in [1, -1]:  # +Z and -Z
+        bpy.ops.mesh.primitive_cone_add(
+            vertices=64,
+            radius1=0.1 * star_radius,    # same width
+            radius2=0.0,
+            depth=100 * star_radius,      # 5× longer
+            location=star_obj.location,
+        )
+        beam = bpy.context.active_object
+        beam.name = f"{star_obj.name}_Beam_{'Top' if direction == 1 else 'Bottom'}"
+        beam.rotation_euler[0] = 0 if direction == 1 else 3.14159
+
+        # Adjusted Z offset for longer beam
+        beam.location.z += direction * (50 * star_radius + 0.5 * star_radius)
+
+        if beam.data.materials:
+            beam.data.materials[0] = mat
+        else:
+            beam.data.materials.append(mat)
+
+        beam.parent = star_obj
 
 def add_star(star_class=None):
     props = bpy.context.scene.planet_generator_props
@@ -1033,6 +1093,9 @@ def add_star(star_class=None):
     links.new(emission.outputs['Emission'], output.inputs['Surface'])
 
     star.data.materials.append(mat)
+    
+    if star_class == 'NS':
+        add_neutron_star_beams(star, props_data['radius'])
 
     print(f"Generated {star_class}-class star (unrealism: {props.enable_unrealism}, no brightness: {props.no_brightness})")
 
@@ -1220,7 +1283,8 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
         ('D', 'D (White Dwarf)', 'Extremely hot and dense remnant'),
         ('Giant', 'G (Giant)', 'Large, luminous evolved star'),
         ('Supergiant', 'S (Supergiant)', 'Enormous and rare star'),
-        ('WR', 'WR (Wolf–Rayet)', 'Evolved massive star with strong winds')
+        ('WR', 'WR (Wolf–Rayet)', 'Evolved massive star with strong winds'),
+        ('NS', 'Neutron Star', 'Smallest, densest star with polar jets')
     ],
     default='RANDOM'
     )
