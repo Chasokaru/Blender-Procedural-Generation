@@ -1,3 +1,3 @@
 # Blender-to-Unity-Procedural-Generation
 
-This is a script in workings that will allow users to help with convertion of procedural generation of objects from Blender software to Unity software.
+This is a script in workings that will allow users to help generate star systems in their blender enviroment, with customization
