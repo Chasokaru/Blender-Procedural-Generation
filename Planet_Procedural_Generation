@@ -1449,7 +1449,7 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
         subtype='FACTOR'
     )
     unreal_size_scale: bpy.props.BoolProperty(
-        name="Unrealistic Star Size",
+        name="Unrealistic Star Size (1:10K)",
         description="Scale star radius to 1:10000 instead of 1:100 (for stylized scenes)",
         default=True
     )
@@ -1550,8 +1550,8 @@ def configure_scene():
         if area.type == 'VIEW_3D':
             for space in area.spaces:
                 if space.type == 'VIEW_3D':
-                    space.clip_end = 10000000
-                    print("Set viewport clip_end to 10000000")
+                    space.clip_end = 100000000 
+                    print("Set viewport clip_end to 100000000")
                     
 def clean_scene():
     # Step 1: Unlink and remove all objects
