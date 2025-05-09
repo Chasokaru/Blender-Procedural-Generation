@@ -2,19 +2,21 @@ import bpy, mathutils, random
 import math, colorsys
 
 star_properties = {
-    'O':          {'radius': 2500.0, 'luminosity': 100000},
-    'B':          {'radius': 500.0,  'luminosity': 1000},
-    'A':          {'radius': 170.0,  'luminosity': 20},
-    'F':          {'radius': 127.5,  'luminosity': 4},
-    'G':          {'radius': 100.0,  'luminosity': 1},
-    'K':          {'radius': 80.0,   'luminosity': 0.2},
-    'M':          {'radius': 50.0,   'luminosity': 0.01},
-    'Giant':      {'radius': 1666.5, 'luminosity': 50},
-    'D':          {'radius': 1.65,   'luminosity': 0.01},
-    'Supergiant': {'radius': 5000.0, 'luminosity': 30000},
-    'WR':         {'radius': 2000.0, 'luminosity': 100000},
-    'NS':         {'radius': 0.8,    'luminosity': 0.02}
+    'O':          {'radius_range': (60000.0, 100000.0),     'luminosity_range': (100000.0, 500000.0)},
+    'B':          {'radius_range': (15000.0, 50000.0),      'luminosity_range': (1000.0, 25000.0)},
+    'A':          {'radius_range': (13000.0, 20000.0),      'luminosity_range': (5.0, 80.0)},
+    'F':          {'radius_range': (11000.0, 14000.0),      'luminosity_range': (1.5, 6.0)},
+    'G':          {'radius_range': (6000.0, 7500.0),        'luminosity_range': (0.6, 1.5)},
+    'K':          {'radius_range': (4500.0, 6000.0),        'luminosity_range': (0.1, 0.6)},
+    'M':          {'radius_range': (1000.0, 4000.0),        'luminosity_range': (0.0001, 0.08)},
+    'D':          {'radius_range': (80.0, 160.0),           'luminosity_range': (0.0001, 0.01)},
+    'WR':         {'radius_range': (20000.0, 30000.0),      'luminosity_range': (30000.0, 200000.0)},
+    'Giant':      {'radius_range': (60000.0, 150000.0),     'luminosity_range': (100.0, 1000.0)},
+    'Supergiant': {'radius_range': (400000.0, 1500000.0),   'luminosity_range': (30000.0, 500000.0)},
+    'NS':         {'radius_range': (100.0, 130.0),          'luminosity_range': (0.01, 0.1)}
 }
+
+
 
 
 def create_planet():
@@ -698,7 +700,7 @@ def geometry_nodes_002_node_group():
     #Rotation
     transform_geometry_001.inputs[2].default_value = (0.0, 0.0, 0.0)
     #Scale
-    random_scale = random.uniform(1.0, 35.0)
+    random_scale = random.uniform(0.5, 30.0)
     transform_geometry_001 = geometry_nodes_002.nodes.new("GeometryNodeTransform")
     transform_geometry_001.inputs[3].default_value = (random_scale, random_scale, random_scale)
 
@@ -965,6 +967,15 @@ def create_planet_system():
     plane.select_set(True)
     
     print("Planet system created successfully!")
+    
+def compute_habitable_zone(luminosity):
+    AU_METERS = 149600000000  # real meters
+    AU_UNREAL = AU_METERS * 0.01  # scaled to Blender scene (1:100)
+    # Returns HZ (inner, outer) in unreal-scaled meters from center
+    hz_inner_au = math.sqrt(luminosity / 1.1)
+    hz_outer_au = math.sqrt(luminosity / 0.53)
+    return hz_inner_au * AU_UNREAL, hz_outer_au * AU_UNREAL
+
 
 def generate_planet_orbit_positions(star_location, num_planets, min_distance=200, spacing=100):
     positions = []
@@ -1072,24 +1083,27 @@ def create_beam_material():
 
     return mat
 
-def add_neutron_star_beams(star_obj, star_radius):
-    remove_old_beams(star_obj.name)
+def add_neutron_star_beams(star_obj, star_radius, apply_unreal_size=False):
     mat = create_beam_material()
 
-    for direction in [1, -1]:  # +Z and -Z
+    # ❗ star_radius is already scaled before this function is called
+    # So we do NOT need to scale again — just use star_radius directly
+    depth = 100 * star_radius
+    radius1 = 0.1 * star_radius
+    offset = 50 * star_radius + 0.5 * star_radius
+
+    for direction in [1, -1]:
         bpy.ops.mesh.primitive_cone_add(
             vertices=12,
-            radius1=0.1 * star_radius,    # same width
+            radius1=radius1,
             radius2=0.0,
-            depth=100 * star_radius,      # 5× longer
+            depth=depth,
             location=star_obj.location,
         )
         beam = bpy.context.active_object
         beam.name = f"{star_obj.name}_Beam_{'Top' if direction == 1 else 'Bottom'}"
         beam.rotation_euler[0] = 0 if direction == 1 else 3.14159
-
-        # Adjusted Z offset for longer beam
-        beam.location.z += direction * (50 * star_radius + 0.5 * star_radius)
+        beam.location.z += direction * offset
 
         if beam.data.materials:
             beam.data.materials[0] = mat
@@ -1097,6 +1111,7 @@ def add_neutron_star_beams(star_obj, star_radius):
             beam.data.materials.append(mat)
 
         beam.parent = star_obj
+
 
 def add_star(star_class=None):
     props = bpy.context.scene.planet_generator_props
@@ -1107,7 +1122,15 @@ def add_star(star_class=None):
     props_data = star_properties[star_class]
     color = get_star_color(star_class)
 
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=props_data['radius'], location=(0, 0, 0))
+    # Randomize size and luminosity within real-world range
+    radius = random.uniform(*props_data['radius_range'])
+    luminosity = random.uniform(*props_data['luminosity_range'])
+
+    if props.unreal_size_scale or props.visualize_habitable_scale:
+        radius *= 0.01
+
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=(0, 0, 0))
+
     star = bpy.context.active_object
     star.name = f"Star_{star_class}"
 
@@ -1124,9 +1147,9 @@ def add_star(star_class=None):
     if props.no_brightness:
         strength = 5.0
     elif props.enable_unrealism:
-        strength = props_data['luminosity'] * 100
+        strength = min(100 + math.log10(luminosity + 1) * 250, 2000)
     else:
-        strength = props_data['luminosity'] * 1000
+        strength = luminosity * 1000
 
     emission.inputs['Strength'].default_value = strength
 
@@ -1134,24 +1157,25 @@ def add_star(star_class=None):
     links.new(emission.outputs['Emission'], output.inputs['Surface'])
 
     star.data.materials.append(mat)
-    
+
     if star_class == 'NS':
-        add_neutron_star_beams(star, props_data['radius'])
+        add_neutron_star_beams(star, radius, apply_unreal_size=props.unreal_size_scale)
 
     print(f"Generated {star_class}-class star (unrealism: {props.enable_unrealism}, no brightness: {props.no_brightness})")
+
 
 
 def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
     max_tilt = 90.0
     tilt_angle = random.uniform(0, max_tilt)
 
-    # Exponential drop-off
+    # Exponential falloff
     k = math.log(2) / 30
     chance = math.exp(-k * tilt_angle)
 
     do_tilt = random.random() < chance
     if do_tilt and random.random() < 0.5:
-        tilt_angle = -tilt_angle  # Flip direction randomly
+        tilt_angle = -tilt_angle
 
     actual_tilt = tilt_angle if do_tilt else 0.0
 
@@ -1166,21 +1190,57 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
         else:
             print(f"{name} not tilted (angle would have been {tilt_angle:.2f}°)")
 
-        # Ring style setup
         ring.data.fill_mode = 'FULL'
         ring.data.bevel_depth = 0.2
         ring.data.bevel_resolution = 3
-        ring.data.resolution_u = 64
+        ring.data.resolution_u = 32
 
-        # Emissive transparent material
         props = bpy.context.scene.planet_generator_props
         use_default = props.use_default_orbit_color
         hue = props.orbit_ring_hue
         luminosity = props.orbit_ring_luminosity
 
-        color = (0.8, 0.9, 1.0, 1.0) if use_default else colorsys.hsv_to_rgb(hue, 1.0, 1.0) + (1.0,)
-        mat = get_orbit_material(f"{name}_Material", color, luminosity)
+        if props.show_habitable_zone:
+            star = bpy.data.objects.get("Star_" + props.star_class)
+            if star:
+                star_radius = star.dimensions[0] / 2  # Unreal-scaled already
+                mat = star.active_material
+                emission_strength = 100.0
 
+                if mat and mat.node_tree:
+                    for node in mat.node_tree.nodes:
+                        if node.type == 'EMISSION':
+                            emission_strength = node.inputs['Strength'].default_value
+                            break
+
+                # Inverse your unreal brightness approximation
+                luminosity_est = 10 ** ((emission_strength - 100) / 250) if emission_strength > 100 else 0.01
+                hz_inner, hz_outer = compute_habitable_zone(luminosity_est)
+                if props.visualize_habitable_scale:
+                    hz_inner *= 0.00001
+                    hz_outer *= 0.00001
+                elif props.unreal_size_scale:
+                    hz_inner *= 0.01
+                    hz_outer *= 0.01
+                dist = radius - star_radius
+
+                if dist < hz_inner:
+                    t = max(0.0, 1 - (hz_inner - dist) / (hz_inner * 0.5))
+                    color = (1.0, t, 0.0, 1.0)  # Red → Yellow
+                elif dist > hz_outer:
+                    t = max(0.0, 1 - (dist - hz_outer) / (hz_outer * 0.5))
+                    color = (0.0, t, 1.0, 1.0)  # Blue → Teal
+                else:
+                    color = (0.0, 1.0, 0.0, 1.0)  # Inside = Green
+                
+                print(f"[{name}] OrbitDist={dist:.1f}m | HZ=({hz_inner:.1f}m–{hz_outer:.1f}m) → Color={color}")
+
+            else:
+                color = (1.0, 1.0, 1.0, 1.0)
+        else:
+            color = (0.8, 0.9, 1.0, 1.0) if use_default else colorsys.hsv_to_rgb(hue, 1.0, 1.0) + (1.0,)
+
+        mat = get_orbit_material(f"{name}_Material", color, luminosity)
         ring.data.materials.append(mat)
 
     return actual_tilt
@@ -1188,6 +1248,10 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
 def add_orbiting_planet(location, radius):
     bpy.context.scene.cursor.location = location
     planet = create_planet()
+    props = bpy.context.scene.planet_generator_props
+    if props.unreal_size_scale or props.visualize_habitable_scale:
+        radius *= 0.01
+
     planet.scale = (radius, radius, radius)
     planet.location = location
     planet.name = f"OrbitingPlanet_{round(radius, 2)}"
@@ -1232,7 +1296,6 @@ def create_orbiting_planets(n):
 
         plane_radius = random.uniform(0.5, 17.5)
         add_orbiting_planet((x, y, z), plane_radius)
-
 
 def create_full_planet_system(num_orbiting_planets=5):
     clean_scene()
@@ -1344,7 +1407,21 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
     max=10.0,
     subtype='FACTOR'
     )
-
+    unreal_size_scale: bpy.props.BoolProperty(
+        name="Unrealistic Star Size",
+        description="Scale star radius to 1:10000 instead of 1:100 (for stylized scenes)",
+        default=True
+    )
+    show_habitable_zone: bpy.props.BoolProperty(
+        name="Visualize Habitable Zone",
+        description="Orbit rings will be colored based on habitability (green=survivable, red=too hot, blue=too cold)",
+        default=False
+    )
+    visualize_habitable_scale: bpy.props.BoolProperty(
+        name="Visualize Habitability (1:10M)",
+        description="Enable extreme scale-down to better visualize habitability distances (Object size remains at 1:10 000)",
+        default=False
+    )
 
 
 class GeneratePlanetSystemOperator(bpy.types.Operator):
@@ -1394,6 +1471,17 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         row.enabled = not props.use_default_orbit_color
         row.prop(props, "orbit_ring_hue")
         layout.prop(props, "orbit_ring_luminosity")
+        
+        row = layout.row()
+        row.enabled = not props.visualize_habitable_scale
+        row.prop(props, "unreal_size_scale")
+        row = layout.row()
+        row.enabled = not props.unreal_size_scale
+        row.prop(props, "visualize_habitable_scale")
+
+        layout.prop(props, "show_habitable_zone")
+
+
 
 def register():
     bpy.utils.register_class(PlanetGeneratorProperties)
