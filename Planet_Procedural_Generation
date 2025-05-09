@@ -700,7 +700,7 @@ def geometry_nodes_002_node_group():
     #Rotation
     transform_geometry_001.inputs[2].default_value = (0.0, 0.0, 0.0)
     #Scale
-    random_scale = random.uniform(0.5, 30.0)
+    random_scale = random.uniform(0.5, 35.0)
     transform_geometry_001 = geometry_nodes_002.nodes.new("GeometryNodeTransform")
     transform_geometry_001.inputs[3].default_value = (random_scale, random_scale, random_scale)
 
@@ -1166,6 +1166,7 @@ def add_star(star_class=None):
 
 
 def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
+    props = bpy.context.scene.planet_generator_props
     max_tilt = 90.0
     tilt_angle = random.uniform(0, max_tilt)
 
@@ -1191,7 +1192,7 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
             print(f"{name} not tilted (angle would have been {tilt_angle:.2f}°)")
 
         ring.data.fill_mode = 'FULL'
-        ring.data.bevel_depth = 0.2
+        ring.data.bevel_depth = props.orbit_ring_bevel_depth
         ring.data.bevel_resolution = 3
         ring.data.resolution_u = 32
 
@@ -1400,12 +1401,12 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
         subtype='FACTOR'
     )
     orbit_ring_luminosity: bpy.props.FloatProperty(
-    name="Orbit Ring Luminosity",
-    description="Controls how bright the orbit ring glow is",
-    default=3.0,
-    min=0.1,
-    max=10.0,
-    subtype='FACTOR'
+        name="Orbit Ring Luminosity",
+        description="Controls how bright the orbit ring glow is",
+        default=3.0,
+        min=0.1,
+        max=50.0,
+        subtype='FACTOR'
     )
     unreal_size_scale: bpy.props.BoolProperty(
         name="Unrealistic Star Size",
@@ -1422,7 +1423,14 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
         description="Enable extreme scale-down to better visualize habitability distances (Object size remains at 1:10 000)",
         default=False
     )
-
+    orbit_ring_bevel_depth: bpy.props.FloatProperty(
+        name="Orbit Ring Bevel Depth",
+        description="Controls the visual thickness of orbit rings(Suggest only going above 1.0 if you using high distance orbits)",
+        default=0.2,
+        min=0.0,
+        max=100.0,
+        subtype='FACTOR'
+    )
 
 class GeneratePlanetSystemOperator(bpy.types.Operator):
     bl_idname = "object.generate_planet_system"
@@ -1471,6 +1479,7 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         row.enabled = not props.use_default_orbit_color
         row.prop(props, "orbit_ring_hue")
         layout.prop(props, "orbit_ring_luminosity")
+        layout.prop(props, "orbit_ring_bevel_depth")
         
         row = layout.row()
         row.enabled = not props.visualize_habitable_scale
@@ -1501,8 +1510,8 @@ def configure_scene():
         if area.type == 'VIEW_3D':
             for space in area.spaces:
                 if space.type == 'VIEW_3D':
-                    space.clip_end = 100000
-                    print("Set viewport clip_end to 100000")
+                    space.clip_end = 10000000
+                    print("Set viewport clip_end to 10000000")
                     
 def clean_scene():
     # Step 1: Unlink and remove all objects
