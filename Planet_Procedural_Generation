@@ -29,6 +29,24 @@ def create_planet():
     modifier = planet.modifiers.new(name="PlanetTerrain", type='NODES')
     modifier.node_group = geometry_nodes_001_node_group()
     
+    
+    # Determine moon spawn chance based on scale (0.5 to 35 -> 0% to 50%)
+    planet_scale = planet.scale[0]
+    moon_chance = min(max((planet_scale - 0.5) / (35 - 0.5) * 0.5, 0.0), 0.5)
+    if random.random() < moon_chance:
+        num_moons = random.randint(1, 3)
+        for i in range(num_moons):
+            moon_distance = planet_scale + 10.0
+            angle = random.uniform(0, 2 * math.pi)
+            x = planet.location.x + math.cos(angle) * moon_distance
+            y = planet.location.y + math.sin(angle) * moon_distance
+            z = planet.location.z
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=(x, y, z))
+            moon = bpy.context.active_object
+            moon.name = f"Moon_{planet.name}_{i}"
+            scale_factor = random.uniform(0.3, 2.0)
+            moon.scale = (scale_factor, scale_factor, scale_factor)
+
     return planet
 
 def create_placement_plane(planet):
@@ -1246,10 +1264,32 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
 
     return actual_tilt
 
+
 def add_orbiting_planet(location, radius):
     bpy.context.scene.cursor.location = location
     planet = create_planet()
     props = bpy.context.scene.planet_generator_props
+
+    # --- Spawn moons as nearby objects using original radius ---
+    original_radius = radius
+    moon_chance = min(max((original_radius - 0.5) / (35 - 2.0), 0.0), 1.0)
+    if random.random() < moon_chance:
+        num_moons = random.randint(1, 5)
+        for i in range(num_moons):
+            angle = random.uniform(0, 2 * math.pi)
+            visual_radius = radius * 0.01 if (props.unreal_size_scale or props.visualize_habitable_scale) else radius
+            moon_distance = visual_radius + 30.0 + random.uniform(0, 70.0)
+
+            offset = mathutils.Vector((math.cos(angle) * moon_distance, math.sin(angle) * moon_distance, 0))
+            location_vector = mathutils.Vector(location)
+            moon_location = location_vector + offset
+
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=moon_location)
+            moon = bpy.context.active_object
+            moon.name = f"Moon_{planet.name}_{i}"
+            scale_factor = random.uniform(0.3, 2.0)
+            moon.scale = (scale_factor, scale_factor, scale_factor)
+
     if props.unreal_size_scale or props.visualize_habitable_scale:
         radius *= 0.01
 
@@ -1269,7 +1309,7 @@ def add_orbiting_planet(location, radius):
                 modifier["Input_4"] = cube
     planet.hide_viewport = True
     planet.hide_render = True
-
+    
 def create_orbiting_planets(n):
     used_radii = []
     scene_props = bpy.context.scene.planet_generator_props
