@@ -16,6 +16,132 @@ star_properties = {
     'NS':         {'radius_range': (100.0, 130.0),          'luminosity_range': (0.01, 0.1)}
 }
 
+star_names = [
+    "Solara", "Alpha Centauri", "Sirius", "Betelgeuse", "Rigel",
+    "Vega", "Arcturus", "Canopus", "Altair", "Spica",
+    "Proxima Centauri", "Barnard's Star", "Wolf 359", "Lalande 21185", "Epsilon Eridani",
+    "Tau Ceti", "Gliese 581", "Kepler-186", "TRAPPIST-1", "Procyon",
+    "Achernar", "Aldebaran", "Antares", "Pollux", "Fomalhaut",
+    "Deneb", "Regulus", "Adhara", "Castor", "Bellatrix",
+    "Elnath", "Miaplacidus", "Alnilam", "Alnair", "Alioth",
+    "Dubhe", "Mirfak", "Wezen", "Sargas", "Kaus Australis",
+    "Avior", "Alhena", "Menkalinan", "Atria", "Alphard",
+    "Polaris", "Mirach", "Algol", "Almach", "Hamal",
+    "Acamar", "Acrux", "Albireo", "Alcor", "Alcyone",
+    "Alderamin", "Alfirk", "Algedi", "Algenib", "Algenubi",
+    "Algieba", "Alkes", "Almaaz", "Alnitak", "Aludra",
+    "Alula Australis", "Ancha", "Angetenar", "Ankaa", "Antlia",
+    "Apus", "Aquila", "Ara", "Argo Navis", "Ariel",
+    "Arneb", "Ascella", "Asellus Australis", "Asellus Borealis", "Aspidiske",
+    "Asterope", "Atlas", "Auriga", "Azha", "Baham",
+    "Baten Kaitos", "Becrux", "Beid", "Benetnasch", "Beta Hydri",
+    "Beta Pictoris", "Biham", "Bootes", "Botein", "Brachium",
+    "Caelum", "Calx", "Camelopardalis", "Canes Venatici", "Capricornus",
+    "Carina", "Cassiopeia", "Celaeno", "Centaurus", "Cepheus",
+    "Cetus", "Chamaeleon", "Chara", "Cheleb", "Circinus",
+    "Columba", "Coma Berenices", "Corona Australis", "Corona Borealis", "Corvus",
+    "Crater", "Crux", "Cursa", "Cygnus", "Dabih",
+    "Delphinus", "Delta Pavonis", "Deneb Algedi", "Denebola", "Diphda",
+    "Dorado", "Draco", "Dziban", "Edasich", "Electra",
+    "Enif", "Eridanus", "Eta Carinae", "Etamin", "Felis",
+    "Fornax", "Fum al Samakah", "Furud", "Gacrux", "Gamma Cassiopeiae",
+    "Gamma Crucis", "Gamma Draconis", "Gamma Velorum", "Garnet Star", "Gemma",
+    "Giausar", "Gienah", "Girtab", "Gliese 876", "Gomeisa",
+    "Gorgonea Tertia", "Graffias", "Grafias", "Grassator", "Grus",
+    "Hadar", "Haldus", "Hassaleh", "Hatysa", "Helvetios",
+    "Hercules", "Herschel's Garnet Star", "Heze", "Homam", "Horologium",
+    "Hydra", "Hydrus", "Indus", "Izar", "Jabbah",
+    "Janus", "Jih", "Kaffa", "Kajam", "Kakkab",
+    "Kappa Velorum", "Kaus Borealis", "Kaus Media", "Keid", "Kitalpha",
+    "Kochab", "Kornephoros", "Kraz", "Ksora", "Kuma",
+    "Kurhah", "Lacerta", "Lambda Scorpii", "La Superba", "Lesath",
+    "Libra", "Lupus", "Lynx", "Lyra", "Maasym",
+    "Maia", "Marfak", "Marfik", "Markab", "Matar",
+    "Mebsuta", "Megrez", "Mekbuda", "Menchib", "Menkar",
+    "Menkent", "Menkib", "Merak", "Merga", "Merope",
+    "Mesarthim", "Metallah", "Microscopium", "Mimosa", "Mintaka",
+    "Mira", "Miram", "Mirzam", "Misam", "Mizar",
+    "Monoceros", "Mons Mensae", "Mufrid", "Muliphein", "Musca",
+    "Muscida", "Nair al Saif", "Naos", "Nash", "Nashira",
+    "Navi", "Nekkar", "Nembus", "Nihal", "Norma",
+    "Nusakan", "Nunki", "Octans", "Oculus Boreus", "Ophiuchus",
+    "Orion", "Pavo", "Peacock", "Pegasus", "Perseus",
+    "Phact", "Phecda", "Pherkad", "Phoenix", "Pictor",
+    "Pisces", "Piscis Austrinus", "Pleione", "Polaris Australis", "Porrima",
+    "Praecipua", "Prima Giedi", "Propus", "Puppis", "Pyxis",
+    "Rana", "Rasalas", "Rasalgethi", "Rasalhague", "Rastaban",
+    "Regor", "Revati", "Rigil Kentaurus", "Rijl al Awwa", "Rotanev",
+    "Ruchba", "Rukbat", "Sabik", "Sadachbia", "Sadalbari",
+    "Sadalmelik", "Sadalsuud", "Sadr", "Sagitta", "Sagittarius",
+    "Saiph", "Salm", "Sarin", "Scheat", "Schedar",
+    "Scorpius", "Sculptor", "Scutum", "Secunda Giedi", "Segin",
+    "Seginus", "Serpens", "Shaula", "Sheliak", "Sheratan",
+    "Skat", "Spiculum", "Sterope", "Subra", "Suhail",
+    "Sulafat", "Syrma", "Tabit", "Talitha", "Tania Australis",
+    "Tania Borealis", "Tarazed", "Tarf", "Taurus", "Taygeta",
+    "Tegmine", "Tejat", "Tejat Posterior", "Telephassa", "Terebellum",
+    "Thabit", "Theemin", "Thuban", "Tiaki", "Titawin",
+    "Toliman", "Tonatiuh", "Torcularis Septentrionalis", "Toxotes", "Tseen Kee",
+    "Tucana", "Tureis", "Tyl", "Unukalhai", "Ursa Major",
+    "Ursa Minor", "Vela", "Veritate", "Vindemiatrix", "Virgo",
+    "Volans", "Vulpecula", "Wasat", "Wazn", "Wei",
+    "Wesen", "Xylos", "Yed Posterior", "Yed Prior", "Yildun",
+    "Zaniah", "Zaurak", "Zavijava", "Zeta Reticuli", "Zibal",
+    "Zosma", "Zubenelgenubi", "Zubenelhakrabi", "Zubeneschamali", "Aethelred",
+    "Aleria", "Andromeda Prime", "Aquarii Beta", "Arcturi Minor", "Astraeus",
+    "Aurelia Nova", "Bellatrix Secundus", "Caelus Prime", "Canis Majoris Alpha", "Capella B",
+    "Centauri Gamma", "Cygnus X-1 (fictionalized star name)", "Draconis Theta", "Eridani Prime", "Fomalhaut B",
+    "Geminorum Alpha", "Helios Minor", "Hydrae Gamma", "Indi Alpha", "Kepler-22 (star, not planet)",
+    "Libris Alpha", "Lyrae Epsilon", "Mira Ceti", "Nebulosa Prime", "Orionis Delta",
+    "Pavonis Epsilon", "Pegasi Beta", "Persei Alpha", "Phoenix Alpha", "Pictoris Gamma",
+    "Polaris Minor", "Procyon B", "Reticuli Zeta", "Sagittarii Alpha", "Scorpii Lambda",
+    "Serpentis Alpha", "Sirius C (hypothetical)", "Tauri Epsilon", "Ursae Minoris Gamma", "Vega Minor",
+    "Virginis Alpha", "Volantis Beta", "Xanthe", "Yggdrasil Nova", "Zephyr Prime",
+    "Aethelwulf", "Brynn", "Caspian Star", "Dagon Prime", "Elara Nova",
+    "Faelan", "Gorgon (Star System Name)", "Hesperos Star", "Icarus Prime", "Juno Star",
+    "Kael", "Lyra's Harp", "Morwen", "Nyxos", "Orion's Belt Star (Simplified)",
+    "Pallas Star", "Quintus", "Rhea Silva", "Sol Invictus", "Terra Nova Star",
+    "Ulysses Star", "Vesperia", "Woden's Eye", "Xylia", "Yara's Beacon",
+    "Zeus's Light", "Achenar Prime", "Belisama", "Cygnus Rift", "Dorado Cloud",
+    "Eridanus Nebula Star", "Fornax Cluster Prime", "Gemini's Twin", "Hydrus Stream Star", "Indus Void Star",
+    "Lyra's Echo", "Monoceros Ring Star", "Nebula Heart", "Orion's Spur Star", "Pictor's Easel",
+    "Reticulum Diamond", "Sculptor Galaxy Star", "Serpens Nebula Core", "Tucana Cloud Gem", "Ursa Major Stream Star",
+    "Vela Pulsar (Star Name)", "Xenophanes Star", "Yggdrasil's Root", "Zodiacus Prime", "Aethelstan",
+    "Bellatrix Tertiary", "Caelus Secundus", "Draconis Kappa", "Eridani Secundus", "Fomalhaut C",
+    "Geminorum Beta", "Helios Tertiary", "Hydrae Delta", "Indi Beta", "Libris Beta",
+    "Lyrae Zeta", "Orionis Epsilon", "Pavonis Zeta", "Pegasi Gamma", "Persei Beta",
+    "Phoenix Beta", "Pictoris Delta", "Polaris Tertiary", "Reticuli Epsilon", "Sagittarii Beta",
+    "Scorpii Mu", "Serpentis Beta", "Tauri Zeta", "Ursae Minoris Delta", "Vega Tertiary",
+    "Virginis Beta", "Volantis Gamma", "Xylos Minor", "Yara's Echo", "Zephyr Secundus",
+    "Astrum Major", "Astrum Minor", "Nova Prime", "Stella Maris", "Luminos",
+    "Ignis", "Flamma", "Radius", "Scintilla", "Candela",
+    "Fulgor", "Nitor", "Splendor", "Coruscus", "Micans",
+    "Argentum Stella", "Aurum Stella", "Rubrum Stella", "Caeruleum Stella", "Viridis Stella",
+    "Albus Stella", "Noctua Prime", "Umbra Star", "Crepusculum", "Diluculum",
+    "Aurorae Stella", "Vesperi Stella", "Cosmos Prime", "Universum Stella", "Galaxias Prime",
+    "Sidus", "Cometes Stella", "Asteria", "Planetarum Custos", "Mundi Axis",
+    "Lux Aeterna", "Ignis Divinus", "Animus Stella", "Spiritus Luminis", "Vitae Fons",
+    "Origo Mundi", "Alpha Mundi", "Omega Mundi", "Chronos Stella", "Kairos Stella",
+    "Tempus Fugit Stella", "Aevum Stella", "Saeculum Novum", "Historiae Lumen", "Futuri Praenuntius",
+    "Spes Nova", "Pax Stella", "Concordia Luminis", "Harmonia Universi", "Silentium Cosmica",
+    "Melodia Sphaerarum", "Musica Universalis", "Ars Lucis", "Scientia Stellarum", "Sapientia Cosmica",
+    "Veritas Luminosa", "Ratio Stellaris", "Lex Universi", "Ordo Cosmicus", "Vis Stellaris",
+    "Potentia Luminis", "Numen Stellae", "Sacrum Ignis", "Divinitas Lucis", "Sanctum Astrum",
+    "Templum Caeli", "Porta Stellarum", "Via Lactea (as a single star name)", "Iter Ad Astra", "Finis Terrae Stella",
+    "Ultima Thule Stella", "Hyperion Prime", "Hyperborea Stella", "Atlantis Nova", "Lemuria Lux",
+    "Mu Stella", "Shambhala Lumen", "Avalon Ignis", "Camelot Stella", "Excalibur Lux",
+    "Merlin's Star", "Arthur's Crown", "Guinevere's Light", "Lancelot's Flame", "Gawain's Glow",
+    "Percival's Beacon", "Galahad's Radiance", "Round Table Star", "Holy Grail Star", "Pendragon Flame",
+    "Uther's Light", "Igraine's Star", "Morgana's Shadow (a darker star name)", "Mordred's Ember", "Titania's Sparkle",
+    "Oberon's Gleam", "Puck's Flicker", "Ariel's Whisper", "Caliban's Smolder", "Prospero's Orb",
+    "Miranda's Shine", "Ferdinand's Ray", "Sycorax's Void", "Setebos Star"
+]
+
+selected_star_name = random.choice(star_names)
+selected_star_name
+
+current_star_name = None
+
 def create_planet():
     # Create the planet sphere
     bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=(0, 0, 0))
@@ -45,6 +171,55 @@ def create_planet():
             moon.scale = (scale_factor, scale_factor, scale_factor)
 
     return planet
+
+def label_object(obj, label_text):
+    props = bpy.context.scene.planet_generator_props
+    if not props.show_planet_labels:
+        return
+
+    bpy.ops.object.text_add(location=(0, 0, 0))
+    text_obj = bpy.context.active_object
+    text_obj.data.body = label_text
+    text_obj.name = f"Label_{label_text}"
+    text_obj.data.align_x = 'CENTER'
+    text_obj.data.align_y = 'CENTER'
+
+    # Position and scale
+    height_offset = obj.dimensions.z * 0.6 + 5.0
+    text_obj.location = obj.location + mathutils.Vector((0, 0, height_offset))
+    text_obj.scale = (props.planet_label_scale,) * 3
+
+    # Create or assign glowing material
+    mat = bpy.data.materials.get("LabelMaterial")
+    if mat is None:
+        mat = bpy.data.materials.new(name="LabelMaterial")
+        mat.use_nodes = True
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        nodes.clear()
+        emission = nodes.new("ShaderNodeEmission")
+        output = nodes.new("ShaderNodeOutputMaterial")
+        links.new(emission.outputs["Emission"], output.inputs["Surface"])
+        mat.blend_method = 'BLEND'
+        mat.use_backface_culling = False
+
+    # Update emission
+    emission_node = mat.node_tree.nodes.get("Emission")
+    if emission_node:
+        emission_node.inputs["Color"].default_value = (1.0, 1.0, 0.4, 1.0)
+        emission_node.inputs["Strength"].default_value = props.planet_label_luminosity
+
+    if text_obj.data.materials:
+        text_obj.data.materials[0] = mat
+    else:
+        text_obj.data.materials.append(mat)
+
+    cam = bpy.context.scene.camera
+    if cam:
+        constraint = text_obj.constraints.new(type='TRACK_TO')
+        constraint.target = cam
+        constraint.track_axis = 'TRACK_Z'
+        constraint.up_axis = 'UP_Y'
 
 def create_placement_plane(planet):
     # Create a plane for object placement
@@ -1316,10 +1491,13 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
     return actual_tilt
 
 
-def add_orbiting_planet(location, radius):
+def add_orbiting_planet(location, radius, planet_index):
     bpy.context.scene.cursor.location = location
     planet = create_planet()
     props = bpy.context.scene.planet_generator_props
+
+    # ✅ Rename planet first so moons inherit proper name
+    planet.name = f"{current_star_name}-{planet_index + 1}"
 
     # --- Spawn moons as nearby objects using original radius ---
     original_radius = radius
@@ -1337,23 +1515,26 @@ def add_orbiting_planet(location, radius):
 
             bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=moon_location)
             moon = bpy.context.active_object
-            moon.name = f"Moon_{planet.name}_{i}"
+            moon.name = f"{planet.name}-{i + 1}"
             scale_factor = random.uniform(0.3, 2.0)
             moon.scale = (scale_factor, scale_factor, scale_factor)
+
 
     if props.unreal_size_scale or props.visualize_habitable_scale:
         radius *= 0.01
 
     planet.scale = (radius, radius, radius)
     planet.location = location
-    planet.name = f"OrbitingPlanet_{round(radius, 2)}"
+    planet.name = f"{current_star_name}-{planet_index + 1}"
+    if props.show_planet_labels:
+        label_object(planet, planet.name)
     plane = create_placement_plane(planet)
     plane.location = location
     plane.name = f"{planet.name}_PlacementPlane"
     
     enabled_spawnables = get_enabled_spawnables(props)
     if not enabled_spawnables:
-        print("⚠️ No enabled spawnables! Skipping object spawn.")
+        print(" No enabled spawnables! Skipping object spawn.")
         return
 
     random_obj_name = random.choice(list(enabled_spawnables.keys()))
@@ -1373,41 +1554,45 @@ def add_orbiting_planet(location, radius):
     random_obj.hide_render = True
     
 def create_orbiting_planets(n):
-    used_radii = []
     scene_props = bpy.context.scene.planet_generator_props
     min_radius = scene_props.min_orbit_radius
     max_radius = scene_props.max_orbit_radius
     min_spacing = scene_props.min_orbit_spacing
 
-    for i in range(n):
-        while True:
-            radius = random.uniform(min_radius, max_radius)
-            if all(abs(radius - r) >= min_spacing for r in used_radii):
-                used_radii.append(radius)
-                break
+    used_radii = []
 
-        # Determine orbit tilt angle
-        tilt_angle = create_orbit_ring(radius, name=f"OrbitRing_{i}", create_mesh=scene_props.show_orbit_rings)
+    # Step 1: Collect valid orbit distances
+    while len(used_radii) < n:
+        radius = random.uniform(min_radius, max_radius)
+        if all(abs(radius - r) >= min_spacing for r in used_radii):
+            used_radii.append(radius)
 
+    # Step 2: Sort by distance from the star
+    used_radii.sort()
+
+    for index, radius in enumerate(used_radii):
+        tilt_angle = create_orbit_ring(radius, name=f"OrbitRing_{index}", create_mesh=scene_props.show_orbit_rings)
         angle = random.uniform(0, 2 * math.pi)
+
         x = math.cos(angle) * radius
         y = math.sin(angle) * radius
         z = 0
 
         rotated = mathutils.Matrix.Rotation(math.radians(tilt_angle), 4, 'Y') @ mathutils.Vector((x, y, z))
-        x, y, z = rotated.x, rotated.y, rotated.z
-
-        plane_radius = random.uniform(0.5, 17.5)
-        add_orbiting_planet((x, y, z), plane_radius)
+        add_orbiting_planet(rotated, radius, index)
 
 def create_full_planet_system(num_orbiting_planets=5):
+    global current_star_name
     clean_scene()
+    
+    current_star_name = random.choice(star_names)
+    print(f"Selected star system: {current_star_name}")
     
     # Create a random object as the template
     props = bpy.context.scene.planet_generator_props  # ✅ Moved up to top
     enabled_spawnables = get_enabled_spawnables(props)
     if not enabled_spawnables:
-        print("⚠️ No enabled spawnables! Skipping object spawn.")
+        print("No enabled spawnables! Skipping object spawn.")
         return
 
     random_obj_name = random.choice(list(enabled_spawnables.keys()))
@@ -1546,7 +1731,28 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
     enable_spire: bpy.props.BoolProperty(name="Enable Spire", default=True)
     enable_dish: bpy.props.BoolProperty(name="Enable Dish", default=True)
     enable_antenna: bpy.props.BoolProperty(name="Enable Antenna", default=True)
-
+    
+    show_planet_labels: bpy.props.BoolProperty(
+    name="Show Planet Labels",
+    description="Display labels above each planet for easier identification",
+    default=False
+    )
+    planet_label_scale: bpy.props.FloatProperty(
+        name="Label Size",
+        description="Controls how large the planet labels are",
+        default=10.0,
+        min=1.0,
+        max=10000.0,
+        subtype='FACTOR'
+    )
+    planet_label_luminosity: bpy.props.FloatProperty(
+        name="Label Luminosity",
+        description="How bright the label glows in Cycles/Eevee",
+        default=25.0,
+        min=1.0,
+        max=100.0,
+        subtype='FACTOR'
+    )
 
 class GeneratePlanetSystemOperator(bpy.types.Operator):
     bl_idname = "object.generate_planet_system"
@@ -1638,6 +1844,11 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         row = layout.row()
         row.enabled = not (enabled_count == 1 and props.enable_antenna)
         row.prop(props, "enable_antenna")
+        
+        layout.prop(props, "show_planet_labels")
+        if props.show_planet_labels:
+            layout.prop(props, "planet_label_scale")
+            layout.prop(props, "planet_label_luminosity")
 
 
 
@@ -1688,7 +1899,6 @@ def clean_scene():
             break
 
     print("Scene fully cleaned.")
-
 
 def clean_data_blocks():
     data_groups = [
