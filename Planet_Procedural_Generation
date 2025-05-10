@@ -719,7 +719,6 @@ def geometry_nodes_002_node_group():
     transform_geometry_001.inputs[2].default_value = (0.0, 0.0, 0.0)
     #Scale
     random_scale = random.uniform(0.5, 35.0)
-    transform_geometry_001 = geometry_nodes_002.nodes.new("GeometryNodeTransform")
     transform_geometry_001.inputs[3].default_value = (random_scale, random_scale, random_scale)
 
     #node Distribute Points on Faces
@@ -793,8 +792,13 @@ def geometry_nodes_002_node_group():
     # Clamp and calculate random percentage
     min_density = max(0.0, min(min_density, 100.0))
     max_density = max(min_density, min(max_density, 100.0))
-    random_density_percent = random.uniform(min_density, max_density)
+    # --- Conditional Density Assignment ---
+    if random_scale > 20.0 or random.random() < 0.1:
+        random_density_percent = 0.0
+    else:
+        random_density_percent = random.uniform(min_density, max_density)
 
+    distribute_points_on_faces_001.inputs[3].default_value = random_density_percent
     # Normalize to 0.0–1.0 (because later it's multiplied by 1.0)
     math_001.inputs[0].default_value = random_density_percent * 0.001
     math_001.inputs[1].default_value = 1.0
@@ -1278,7 +1282,7 @@ def add_orbiting_planet(location, radius):
         for i in range(num_moons):
             angle = random.uniform(0, 2 * math.pi)
             visual_radius = radius * 0.01 if (props.unreal_size_scale or props.visualize_habitable_scale) else radius
-            moon_distance = visual_radius + 30.0 + random.uniform(0, 70.0)
+            moon_distance = visual_radius + 40.0 + random.uniform(0, 70.0)
 
             offset = mathutils.Vector((math.cos(angle) * moon_distance, math.sin(angle) * moon_distance, 0))
             location_vector = mathutils.Vector(location)
