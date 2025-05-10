@@ -16,9 +16,6 @@ star_properties = {
     'NS':         {'radius_range': (100.0, 130.0),          'luminosity_range': (0.01, 0.1)}
 }
 
-
-
-
 def create_planet():
     # Create the planet sphere
     bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=(0, 0, 0))
@@ -66,17 +63,15 @@ def create_placement_plane(planet):
     
     return plane
 
-def create_cube(name="TestCube", size=1):
+def create_tree(name="Tree", size=1):
     if name in bpy.data.objects:
         return bpy.data.objects[name]
 
-    # Create the cube (trunk)
     trunk_height = size
     bpy.ops.mesh.primitive_cube_add(size=size, location=(0, 0, trunk_height / 2))
     trunk = bpy.context.active_object
     trunk.name = name + "_Trunk"
 
-    # Create the cone (foliage)
     cone_height = size * 2
     cone_radius = size * 1.2
     bpy.ops.mesh.primitive_cone_add(
@@ -87,29 +82,68 @@ def create_cube(name="TestCube", size=1):
     cone = bpy.context.active_object
     cone.name = name + "_Foliage"
 
-    # Join cone and trunk into one object
     bpy.context.view_layer.objects.active = trunk
     cone.select_set(True)
     trunk.select_set(True)
     bpy.ops.object.join()
 
-    cube = bpy.context.active_object
-    cube.name = name
+    tree = bpy.context.active_object  # Changed from cube to tree
+    tree.name = name
 
-    # Link the tree to the modifier and Object Info.001 input
-    plane = bpy.data.objects.get("PlanetPlacementPlane")
-    if plane:
-        for modifier in plane.modifiers:
-            if modifier.name == "PlanetObjectPlacer":
-                modifier["Input_4"] = cube
-                if modifier.node_group:
-                    for node in modifier.node_group.nodes:
-                        if node.name == "Object Info.001":
-                            node.inputs[0].default_value = cube
+    return tree  # Changed from cube to tree
 
-    return cube
+def create_rock(name="Rock"):
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=(0, 0, 1))
+    rock = bpy.context.active_object
+    rock.name = name
+    rock.scale = [random.uniform(0.7, 1.2) for _ in range(3)]
+    bpy.ops.object.shade_smooth()
+    return rock
 
+def create_spire(name="Spire"):
+    bpy.ops.mesh.primitive_cone_add(radius1=0.4, radius2=0.0, depth=3.0, location=(0, 0, 1.5))
+    spire = bpy.context.active_object
+    spire.name = name
+    bpy.ops.object.shade_smooth()
+    return spire
 
+def create_dish(name="Dish"):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=(0, 0, 1))
+    dish = bpy.context.active_object
+    dish.name = name
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.bisect(plane_co=(0, 0, 1), plane_no=(0, 0, -1), use_fill=True, clear_inner=True)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.shade_smooth()
+    return dish
+
+def create_antenna(name="Antenna"):
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.1, depth=2.5, location=(0, 0, 1.25))
+    base = bpy.context.active_object
+    base.name = name + "_Pole"
+
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.2, location=(0, 0, 2.5))
+    top = bpy.context.active_object
+    top.name = name + "_Tip"
+
+    bpy.context.view_layer.objects.active = base
+    base.select_set(True)
+    top.select_set(True)
+    bpy.ops.object.join()
+
+    final = bpy.context.active_object
+    final.name = name
+    return final  # Changed from antenna to final
+
+# ✅ Now that all creation functions are defined, we can create the objects:
+SPAWNABLE_OBJECTS = {
+    "Tree": create_tree,
+    "Rock": create_rock,
+    "Spire": create_spire,
+    "Dish": create_dish,
+    "Antenna": create_antenna
+}
 
 def geometry_nodes_001_node_group():
     
@@ -960,6 +994,18 @@ def geometry_nodes_002_node_group():
     
     return geometry_nodes_002
 
+def get_enabled_spawnables(props):
+    return {
+        name: fn for name, fn in SPAWNABLE_OBJECTS.items() if (
+            (name == "Tree" and props.enable_tree) or
+            (name == "Rock" and props.enable_rock) or
+            (name == "Spire" and props.enable_spire) or
+            (name == "Dish" and props.enable_dish) or
+            (name == "Antenna" and props.enable_antenna)
+        )
+    }
+
+
 def create_planet_system():
     # Clear existing objects
     bpy.ops.object.select_all(action='SELECT')
@@ -971,14 +1017,15 @@ def create_planet_system():
     # Create the placement plane
     plane = create_placement_plane(planet)
     
-    # Create the object that will be instanced
-    cube = create_cube()
+    # Create a random object that will be instanced
+    random_obj_name = random.choice(list(SPAWNABLE_OBJECTS.keys()))
+    random_obj = SPAWNABLE_OBJECTS[random_obj_name]()
 
-    # Hide the original planet and cube from viewport and render
+    # Hide the original planet and object from viewport and render
     planet.hide_viewport = True
     planet.hide_render = True
-    cube.hide_viewport = True
-    cube.hide_render = True
+    random_obj.hide_viewport = True
+    random_obj.hide_render = True
 
     # Ensure the placement plane is still visible
     plane.hide_viewport = False
@@ -988,7 +1035,7 @@ def create_planet_system():
     bpy.context.view_layer.objects.active = plane
     plane.select_set(True)
     
-    print("Planet system created successfully!")
+    print(f"Planet system created successfully with {random_obj_name}!")
     
 def compute_habitable_zone(luminosity):
     AU_METERS = 149600000000  # real meters
@@ -1303,16 +1350,27 @@ def add_orbiting_planet(location, radius):
     plane = create_placement_plane(planet)
     plane.location = location
     plane.name = f"{planet.name}_PlacementPlane"
-    cube = bpy.data.objects.get("TestCube")
-    if cube:
+    
+    enabled_spawnables = get_enabled_spawnables(props)
+    if not enabled_spawnables:
+        print("⚠️ No enabled spawnables! Skipping object spawn.")
+        return
+
+    random_obj_name = random.choice(list(enabled_spawnables.keys()))
+    random_obj = enabled_spawnables[random_obj_name]()
+
+    
+    if random_obj:
         for modifier in plane.modifiers:
             if modifier.name == "PlanetObjectPlacer":
                 for node in modifier.node_group.nodes:
                     if node.name == "Object Info.001":
-                        node.inputs[0].default_value = cube
-                modifier["Input_4"] = cube
+                        node.inputs[0].default_value = random_obj
+                modifier["Input_4"] = random_obj
     planet.hide_viewport = True
     planet.hide_render = True
+    random_obj.hide_viewport = True
+    random_obj.hide_render = True
     
 def create_orbiting_planets(n):
     used_radii = []
@@ -1345,15 +1403,23 @@ def create_orbiting_planets(n):
 def create_full_planet_system(num_orbiting_planets=5):
     clean_scene()
     
-    cube = create_cube(name="TestCube")
-    cube.hide_viewport = True
-    cube.hide_render = True
+    # Create a random object as the template
+    props = bpy.context.scene.planet_generator_props  # ✅ Moved up to top
+    enabled_spawnables = get_enabled_spawnables(props)
+    if not enabled_spawnables:
+        print("⚠️ No enabled spawnables! Skipping object spawn.")
+        return
 
-    props = bpy.context.scene.planet_generator_props
+    random_obj_name = random.choice(list(enabled_spawnables.keys()))
+    random_obj = enabled_spawnables[random_obj_name]()
+
+    random_obj.hide_viewport = True
+    random_obj.hide_render = True
+
     add_star(props.star_class)  # Place star first
 
     create_orbiting_planets(num_orbiting_planets)  # Then create planets that orbit it
-    print("Full system generated with Star and orbiting planets.")
+    print(f"Full system generated with Star and orbiting planets using {random_obj_name}.")
 
 class PlanetGeneratorProperties(bpy.types.PropertyGroup):
     planet_count: bpy.props.IntProperty(
@@ -1475,6 +1541,12 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
         max=100.0,
         subtype='FACTOR'
     )
+    enable_tree: bpy.props.BoolProperty(name="Enable Tree", default=True)
+    enable_rock: bpy.props.BoolProperty(name="Enable Rock", default=True)
+    enable_spire: bpy.props.BoolProperty(name="Enable Spire", default=True)
+    enable_dish: bpy.props.BoolProperty(name="Enable Dish", default=True)
+    enable_antenna: bpy.props.BoolProperty(name="Enable Antenna", default=True)
+
 
 class GeneratePlanetSystemOperator(bpy.types.Operator):
     bl_idname = "object.generate_planet_system"
@@ -1533,6 +1605,39 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         row.prop(props, "visualize_habitable_scale")
 
         layout.prop(props, "show_habitable_zone")
+        
+        enabled_items = [
+            props.enable_tree,
+            props.enable_rock,
+            props.enable_spire,
+            props.enable_dish,
+            props.enable_antenna,
+        ]
+        enabled_count = sum(enabled_items)
+
+        layout.label(text="Enable Spawnable Objects:")
+        layout.label(text="At least one must remain enabled", icon='INFO')
+
+        # Dynamically disable the last remaining enabled checkbox
+        row = layout.row()
+        row.enabled = not (enabled_count == 1 and props.enable_tree)
+        row.prop(props, "enable_tree")
+
+        row = layout.row()
+        row.enabled = not (enabled_count == 1 and props.enable_rock)
+        row.prop(props, "enable_rock")
+
+        row = layout.row()
+        row.enabled = not (enabled_count == 1 and props.enable_spire)
+        row.prop(props, "enable_spire")
+
+        row = layout.row()
+        row.enabled = not (enabled_count == 1 and props.enable_dish)
+        row.prop(props, "enable_dish")
+
+        row = layout.row()
+        row.enabled = not (enabled_count == 1 and props.enable_antenna)
+        row.prop(props, "enable_antenna")
 
 
 
