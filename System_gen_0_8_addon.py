@@ -1,0 +1,2574 @@
+bl_info = {
+    "name": "Star System Generator",
+    "author": "Murko Saru",
+    "version": (0, 8, 0),
+    "blender": (4, 4, 3),
+    "location": "View3D > Sidebar > Planet Tools",
+    "description": "Generates a procedural star system with labeled planets, flags, and export tools",
+    "category": "Object",
+}
+
+import bpy, mathutils, random
+import math, colorsys, json, os
+from pathlib import Path
+
+star_properties = {
+    'O':          {'radius_range': (60000.0, 100000.0),     'luminosity_range': (100000.0, 500000.0)},
+    'B':          {'radius_range': (15000.0, 50000.0),      'luminosity_range': (1000.0, 25000.0)},
+    'A':          {'radius_range': (13000.0, 20000.0),      'luminosity_range': (5.0, 80.0)},
+    'F':          {'radius_range': (11000.0, 14000.0),      'luminosity_range': (1.5, 6.0)},
+    'G':          {'radius_range': (6000.0, 7500.0),        'luminosity_range': (0.6, 1.5)},
+    'K':          {'radius_range': (4500.0, 6000.0),        'luminosity_range': (0.1, 0.6)},
+    'M':          {'radius_range': (1000.0, 4000.0),        'luminosity_range': (0.0001, 0.08)},
+    'D':          {'radius_range': (80.0, 160.0),           'luminosity_range': (0.0001, 0.01)},
+    'WR':         {'radius_range': (20000.0, 30000.0),      'luminosity_range': (30000.0, 200000.0)},
+    'Giant':      {'radius_range': (60000.0, 150000.0),     'luminosity_range': (100.0, 1000.0)},
+    'Supergiant': {'radius_range': (400000.0, 1500000.0),   'luminosity_range': (30000.0, 500000.0)},
+    'NS':         {'radius_range': (100.0, 130.0),          'luminosity_range': (0.01, 0.1)}
+}
+
+star_names = [
+    "Solara", "Alpha Centauri", "Sirius", "Betelgeuse", "Rigel",
+    "Vega", "Arcturus", "Canopus", "Altair", "Spica",
+    "Proxima Centauri", "Barnard's Star", "Wolf 359", "Lalande 21185", "Epsilon Eridani",
+    "Tau Ceti", "Gliese 581", "Kepler-186", "TRAPPIST-1", "Procyon",
+    "Achernar", "Aldebaran", "Antares", "Pollux", "Fomalhaut",
+    "Deneb", "Regulus", "Adhara", "Castor", "Bellatrix",
+    "Elnath", "Miaplacidus", "Alnilam", "Alnair", "Alioth",
+    "Dubhe", "Mirfak", "Wezen", "Sargas", "Kaus Australis",
+    "Avior", "Alhena", "Menkalinan", "Atria", "Alphard",
+    "Polaris", "Mirach", "Algol", "Almach", "Hamal",
+    "Acamar", "Acrux", "Albireo", "Alcor", "Alcyone",
+    "Alderamin", "Alfirk", "Algedi", "Algenib", "Algenubi",
+    "Algieba", "Alkes", "Almaaz", "Alnitak", "Aludra",
+    "Alula Australis", "Ancha", "Angetenar", "Ankaa", "Antlia",
+    "Apus", "Aquila", "Ara", "Argo Navis", "Ariel",
+    "Arneb", "Ascella", "Asellus Australis", "Asellus Borealis", "Aspidiske",
+    "Asterope", "Atlas", "Auriga", "Azha", "Baham",
+    "Baten Kaitos", "Becrux", "Beid", "Benetnasch", "Beta Hydri",
+    "Beta Pictoris", "Biham", "Bootes", "Botein", "Brachium",
+    "Caelum", "Calx", "Camelopardalis", "Canes Venatici", "Capricornus",
+    "Carina", "Cassiopeia", "Celaeno", "Centaurus", "Cepheus",
+    "Cetus", "Chamaeleon", "Chara", "Cheleb", "Circinus",
+    "Columba", "Coma Berenices", "Corona Australis", "Corona Borealis", "Corvus",
+    "Crater", "Crux", "Cursa", "Cygnus", "Dabih",
+    "Delphinus", "Delta Pavonis", "Deneb Algedi", "Denebola", "Diphda",
+    "Dorado", "Draco", "Dziban", "Edasich", "Electra",
+    "Enif", "Eridanus", "Eta Carinae", "Etamin", "Felis",
+    "Fornax", "Fum al Samakah", "Furud", "Gacrux", "Gamma Cassiopeiae",
+    "Gamma Crucis", "Gamma Draconis", "Gamma Velorum", "Garnet Star", "Gemma",
+    "Giausar", "Gienah", "Girtab", "Gliese 876", "Gomeisa",
+    "Gorgonea Tertia", "Graffias", "Grafias", "Grassator", "Grus",
+    "Hadar", "Haldus", "Hassaleh", "Hatysa", "Helvetios",
+    "Hercules", "Herschel's Garnet Star", "Heze", "Homam", "Horologium",
+    "Hydra", "Hydrus", "Indus", "Izar", "Jabbah",
+    "Janus", "Jih", "Kaffa", "Kajam", "Kakkab",
+    "Kappa Velorum", "Kaus Borealis", "Kaus Media", "Keid", "Kitalpha",
+    "Kochab", "Kornephoros", "Kraz", "Ksora", "Kuma",
+    "Kurhah", "Lacerta", "Lambda Scorpii", "La Superba", "Lesath",
+    "Libra", "Lupus", "Lynx", "Lyra", "Maasym",
+    "Maia", "Marfak", "Marfik", "Markab", "Matar",
+    "Mebsuta", "Megrez", "Mekbuda", "Menchib", "Menkar",
+    "Menkent", "Menkib", "Merak", "Merga", "Merope",
+    "Mesarthim", "Metallah", "Microscopium", "Mimosa", "Mintaka",
+    "Mira", "Miram", "Mirzam", "Misam", "Mizar",
+    "Monoceros", "Mons Mensae", "Mufrid", "Muliphein", "Musca",
+    "Muscida", "Nair al Saif", "Naos", "Nash", "Nashira",
+    "Navi", "Nekkar", "Nembus", "Nihal", "Norma",
+    "Nusakan", "Nunki", "Octans", "Oculus Boreus", "Ophiuchus",
+    "Orion", "Pavo", "Peacock", "Pegasus", "Perseus",
+    "Phact", "Phecda", "Pherkad", "Phoenix", "Pictor",
+    "Pisces", "Piscis Austrinus", "Pleione", "Polaris Australis", "Porrima",
+    "Praecipua", "Prima Giedi", "Propus", "Puppis", "Pyxis",
+    "Rana", "Rasalas", "Rasalgethi", "Rasalhague", "Rastaban",
+    "Regor", "Revati", "Rigil Kentaurus", "Rijl al Awwa", "Rotanev",
+    "Ruchba", "Rukbat", "Sabik", "Sadachbia", "Sadalbari",
+    "Sadalmelik", "Sadalsuud", "Sadr", "Sagitta", "Sagittarius",
+    "Saiph", "Salm", "Sarin", "Scheat", "Schedar",
+    "Scorpius", "Sculptor", "Scutum", "Secunda Giedi", "Segin",
+    "Seginus", "Serpens", "Shaula", "Sheliak", "Sheratan",
+    "Skat", "Spiculum", "Sterope", "Subra", "Suhail",
+    "Sulafat", "Syrma", "Tabit", "Talitha", "Tania Australis",
+    "Tania Borealis", "Tarazed", "Tarf", "Taurus", "Taygeta",
+    "Tegmine", "Tejat", "Tejat Posterior", "Telephassa", "Terebellum",
+    "Thabit", "Theemin", "Thuban", "Tiaki", "Titawin",
+    "Toliman", "Tonatiuh", "Torcularis Septentrionalis", "Toxotes", "Tseen Kee",
+    "Tucana", "Tureis", "Tyl", "Unukalhai", "Ursa Major",
+    "Ursa Minor", "Vela", "Veritate", "Vindemiatrix", "Virgo",
+    "Volans", "Vulpecula", "Wasat", "Wazn", "Wei",
+    "Wesen", "Xylos", "Yed Posterior", "Yed Prior", "Yildun",
+    "Zaniah", "Zaurak", "Zavijava", "Zeta Reticuli", "Zibal",
+    "Zosma", "Zubenelgenubi", "Zubenelhakrabi", "Zubeneschamali", "Aethelred",
+    "Aleria", "Andromeda Prime", "Aquarii Beta", "Arcturi Minor", "Astraeus",
+    "Aurelia Nova", "Bellatrix Secundus", "Caelus Prime", "Canis Majoris Alpha", "Capella B",
+    "Centauri Gamma", "Cygnus X-1", "Draconis Theta", "Eridani Prime", "Fomalhaut B",
+    "Geminorum Alpha", "Helios Minor", "Hydrae Gamma", "Indi Alpha", "Kepler-22",
+    "Libris Alpha", "Lyrae Epsilon", "Mira Ceti", "Nebulosa Prime", "Orionis Delta",
+    "Pavonis Epsilon", "Pegasi Beta", "Persei Alpha", "Phoenix Alpha", "Pictoris Gamma",
+    "Polaris Minor", "Procyon B", "Reticuli Zeta", "Sagittarii Alpha", "Scorpii Lambda",
+    "Serpentis Alpha", "Sirius C", "Tauri Epsilon", "Ursae Minoris Gamma", "Vega Minor",
+    "Virginis Alpha", "Volantis Beta", "Xanthe", "Yggdrasil Nova", "Zephyr Prime",
+    "Aethelwulf", "Brynn", "Caspian Star", "Dagon Prime", "Elara Nova",
+    "Faelan", "Gorgon", "Hesperos Star", "Icarus Prime", "Juno Star",
+    "Kael", "Lyra's Harp", "Morwen", "Nyxos", "Orion's Belt Star",
+    "Pallas Star", "Quintus", "Rhea Silva", "Sol Invictus", "Terra Nova Star",
+    "Ulysses Star", "Vesperia", "Woden's Eye", "Xylia", "Yara's Beacon",
+    "Zeus's Light", "Achenar Prime", "Belisama", "Cygnus Rift", "Dorado Cloud",
+    "Eridanus Nebula Star", "Fornax Cluster Prime", "Gemini's Twin", "Hydrus Stream Star", "Indus Void Star",
+    "Lyra's Echo", "Monoceros Ring Star", "Nebula Heart", "Orion's Spur Star", "Pictor's Easel",
+    "Reticulum Diamond", "Sculptor Galaxy Star", "Serpens Nebula Core", "Tucana Cloud Gem", "Ursa Major Stream Star",
+    "Vela Pulsar", "Xenophanes Star", "Yggdrasil's Root", "Zodiacus Prime", "Aethelstan",
+    "Bellatrix Tertiary", "Caelus Secundus", "Draconis Kappa", "Eridani Secundus", "Fomalhaut C",
+    "Geminorum Beta", "Helios Tertiary", "Hydrae Delta", "Indi Beta", "Libris Beta",
+    "Lyrae Zeta", "Orionis Epsilon", "Pavonis Zeta", "Pegasi Gamma", "Persei Beta",
+    "Phoenix Beta", "Pictoris Delta", "Polaris Tertiary", "Reticuli Epsilon", "Sagittarii Beta",
+    "Scorpii Mu", "Serpentis Beta", "Tauri Zeta", "Ursae Minoris Delta", "Vega Tertiary",
+    "Virginis Beta", "Volantis Gamma", "Xylos Minor", "Yara's Echo", "Zephyr Secundus",
+    "Astrum Major", "Astrum Minor", "Nova Prime", "Stella Maris", "Luminos",
+    "Ignis", "Flamma", "Radius", "Scintilla", "Candela",
+    "Fulgor", "Nitor", "Splendor", "Coruscus", "Micans",
+    "Argentum Stella", "Aurum Stella", "Rubrum Stella", "Caeruleum Stella", "Viridis Stella",
+    "Albus Stella", "Noctua Prime", "Umbra Star", "Crepusculum", "Diluculum",
+    "Aurorae Stella", "Vesperi Stella", "Cosmos Prime", "Universum Stella", "Galaxias Prime",
+    "Sidus", "Cometes Stella", "Asteria", "Planetarum Custos", "Mundi Axis",
+    "Lux Aeterna", "Ignis Divinus", "Animus Stella", "Spiritus Luminis", "Vitae Fons",
+    "Origo Mundi", "Alpha Mundi", "Omega Mundi", "Chronos Stella", "Kairos Stella",
+    "Tempus Fugit Stella", "Aevum Stella", "Saeculum Novum", "Historiae Lumen", "Futuri Praenuntius",
+    "Spes Nova", "Pax Stella", "Concordia Luminis", "Harmonia Universi", "Silentium Cosmica",
+    "Melodia Sphaerarum", "Musica Universalis", "Ars Lucis", "Scientia Stellarum", "Sapientia Cosmica",
+    "Veritas Luminosa", "Ratio Stellaris", "Lex Universi", "Ordo Cosmicus", "Vis Stellaris",
+    "Potentia Luminis", "Numen Stellae", "Sacrum Ignis", "Divinitas Lucis", "Sanctum Astrum",
+    "Templum Caeli", "Porta Stellarum", "Via Lactea", "Iter Ad Astra", "Finis Terrae Stella",
+    "Ultima Thule Stella", "Hyperion Prime", "Hyperborea Stella", "Atlantis Nova", "Lemuria Lux",
+    "Mu Stella", "Shambhala Lumen", "Avalon Ignis", "Camelot Stella", "Excalibur Lux",
+    "Merlin's Star", "Arthur's Crown", "Guinevere's Light", "Lancelot's Flame", "Gawain's Glow",
+    "Percival's Beacon", "Galahad's Radiance", "Round Table Star", "Holy Grail Star", "Pendragon Flame",
+    "Uther's Light", "Igraine's Star", "Morgana's Shadow", "Mordred's Ember", "Titania's Sparkle",
+    "Oberon's Gleam", "Puck's Flicker", "Ariel's Whisper", "Caliban's Smolder", "Prospero's Orb",
+    "Miranda's Shine", "Ferdinand's Ray", "Sycorax's Void", "Setebos Star"
+]
+
+selected_star_name = random.choice(star_names)
+selected_star_name
+
+current_star_name = None
+
+def create_color_materials():
+    props = bpy.context.scene.planet_generator_props
+    enabled_colors = get_enabled_colors(props)
+
+    color_map = {
+        "Red":      (1.0, 0.2, 0.2, 1.0),
+        "Green":    (0.2, 1.0, 0.2, 1.0),
+        "Blue":     (0.2, 0.4, 1.0, 1.0),
+        "Yellow":   (1.0, 1.0, 0.2, 1.0),
+        "Cyan":     (0.2, 1.0, 1.0, 1.0),
+        "Magenta":  (1.0, 0.2, 1.0, 1.0),
+        "Orange":   (1.0, 0.5, 0.2, 1.0),
+        "White":    (1.0, 1.0, 1.0, 1.0),
+        "Purple":   (0.5, 0.2, 1.0, 1.0),
+        "Black":    (0.05, 0.05, 0.05, 1.0)
+    }
+
+    result = {}
+    for name, color in color_map.items():
+        if enabled_colors.get(name, False):
+            mat = bpy.data.materials.new(name=f"FlagColor_{name}")
+            mat.use_nodes = True
+            nodes = mat.node_tree.nodes
+            links = mat.node_tree.links
+            nodes.clear()
+
+            bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+            bsdf.inputs['Base Color'].default_value = color
+            bsdf.inputs['Roughness'].default_value = 1.0
+
+            output = nodes.new(type='ShaderNodeOutputMaterial')
+            links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+
+            result[name] = mat
+    return result
+
+def create_planet():
+    # Create the planet sphere
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=(0, 0, 0))
+    planet = bpy.context.active_object
+    planet.name = "Planet"
+    
+    # Add the first geometry nodes modifier
+    modifier = planet.modifiers.new(name="PlanetTerrain", type='NODES')
+    modifier.node_group = geometry_nodes_001_node_group()
+    
+    # Determine moon spawn chance based on scale (0.5 to 35 -> 0% to 50%)
+    planet_scale = planet.scale[0]
+    moon_chance = min(max((planet_scale - 0.5) / (35 - 0.5) * 0.5, 0.0), 0.5)
+    if random.random() < moon_chance:
+        num_moons = random.randint(1, 3)
+        for i in range(num_moons):
+            moon_distance = planet_scale + 10.0
+            angle = random.uniform(0, 2 * math.pi)
+            x = planet.location.x + math.cos(angle) * moon_distance
+            y = planet.location.y + math.sin(angle) * moon_distance
+            z = planet.location.z
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=(x, y, z))
+            moon = bpy.context.active_object
+            moon.name = f"Moon_{planet.name}_{i}"
+            scale_factor = random.uniform(0.3, 2.0)
+            moon.scale = (scale_factor, scale_factor, scale_factor)
+
+    return planet
+
+def label_object(obj, label_text):
+    props = bpy.context.scene.planet_generator_props
+    if not props.show_planet_labels:
+        return
+
+    bpy.ops.object.text_add(location=(0, 0, 0))
+    text_obj = bpy.context.active_object
+    text_obj.data.body = label_text
+    text_obj.name = f"Label_{label_text}"
+    text_obj.data.align_x = 'CENTER'
+    text_obj.data.align_y = 'CENTER'
+
+    # Position and scale
+    height_offset = obj.dimensions.z * 0.6 + 5.0
+    text_obj.location = obj.location + mathutils.Vector((0, 0, height_offset))
+    text_obj.scale = (props.planet_label_scale,) * 3
+
+    # Create or assign glowing material
+    mat = bpy.data.materials.get("LabelMaterial")
+    if mat is None:
+        mat = bpy.data.materials.new(name="LabelMaterial")
+        mat.use_nodes = True
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        nodes.clear()
+        emission = nodes.new("ShaderNodeEmission")
+        output = nodes.new("ShaderNodeOutputMaterial")
+        links.new(emission.outputs["Emission"], output.inputs["Surface"])
+        mat.blend_method = 'BLEND'
+        mat.use_backface_culling = False
+
+    emission_node = mat.node_tree.nodes.get("Emission")
+    if emission_node:
+        emission_node.inputs["Color"].default_value = (1.0, 1.0, 0.4, 1.0)
+        emission_node.inputs["Strength"].default_value = props.planet_label_luminosity
+
+    if text_obj.data.materials:
+        text_obj.data.materials[0] = mat
+    else:
+        text_obj.data.materials.append(mat)
+
+    cam = bpy.context.scene.camera
+    if cam:
+        constraint = text_obj.constraints.new(type='TRACK_TO')
+        constraint.target = cam
+        constraint.track_axis = 'TRACK_Z'
+        constraint.up_axis = 'UP_Y'
+
+def create_placement_plane(planet):
+    # Create a plane for object placement
+    bpy.ops.mesh.primitive_plane_add(size=2, enter_editmode=False, align='WORLD', location=(0, 0, 0))
+    plane = bpy.context.active_object
+    plane.name = "PlanetPlacementPlane"
+    
+    # Add the second geometry nodes modifier
+    modifier = plane.modifiers.new(name="PlanetObjectPlacer", type='NODES')
+    modifier.node_group = geometry_nodes_002_node_group()
+    
+    # Set the planet as the input object
+    for node in modifier.node_group.nodes:
+        if node.name == "Object Info":
+            node.inputs[0].default_value = planet
+    
+    return plane
+
+def create_tree(name="Tree", size=1):
+    if name in bpy.data.objects:
+        return bpy.data.objects[name]
+
+    trunk_height = size
+    bpy.ops.mesh.primitive_cube_add(size=size, location=(0, 0, trunk_height / 2))
+    trunk = bpy.context.active_object
+    trunk.name = name + "_Trunk"
+
+    cone_height = size * 2
+    cone_radius = size * 1.2
+    bpy.ops.mesh.primitive_cone_add(
+        radius1=cone_radius,
+        depth=cone_height,
+        location=(0, 0, trunk_height + cone_height / 2)
+    )
+    cone = bpy.context.active_object
+    cone.name = name + "_Foliage"
+
+    bpy.context.view_layer.objects.active = trunk
+    cone.select_set(True)
+    trunk.select_set(True)
+    bpy.ops.object.join()
+
+    tree = bpy.context.active_object
+    tree.name = name
+
+    return tree
+
+def create_rock(name="Rock"):
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=(0, 0, 1))
+    rock = bpy.context.active_object
+    rock.name = name
+    rock.scale = [random.uniform(0.7, 1.2) for _ in range(3)]
+    bpy.ops.object.shade_smooth()
+    return rock
+
+def create_spire(name="Spire"):
+    bpy.ops.mesh.primitive_cone_add(radius1=0.4, radius2=0.0, depth=3.0, location=(0, 0, 1.5))
+    spire = bpy.context.active_object
+    spire.name = name
+    bpy.ops.object.shade_smooth()
+    return spire
+
+def create_dish(name="Dish"):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=(0, 0, 1))
+    dish = bpy.context.active_object
+    dish.name = name
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.bisect(plane_co=(0, 0, 1), plane_no=(0, 0, -1), use_fill=True, clear_inner=True)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.shade_smooth()
+    return dish
+
+def create_antenna(name="Antenna"):
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.1, depth=2.5, location=(0, 0, 1.25))
+    base = bpy.context.active_object
+    base.name = name + "_Pole"
+
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.2, location=(0, 0, 2.5))
+    top = bpy.context.active_object
+    top.name = name + "_Tip"
+
+    bpy.context.view_layer.objects.active = base
+    base.select_set(True)
+    top.select_set(True)
+    bpy.ops.object.join()
+
+    final = bpy.context.active_object
+    final.name = name
+    return final 
+
+SPAWNABLE_OBJECTS = {
+    "Tree": create_tree,
+    "Rock": create_rock,
+    "Spire": create_spire,
+    "Dish": create_dish,
+    "Antenna": create_antenna
+}
+
+def create_custom_planet_material():
+
+    mat1 = bpy.data.materials.new(name="Material.001")
+    mat1.use_nodes = True
+
+    #initialize Material.001 node group
+    material_001 = mat1.node_tree
+
+    #start with a clean node tree
+    for node in material_001.nodes:
+        material_001.nodes.remove(node)
+    material_001.color_tag = 'NONE'
+    material_001.description = ""
+    material_001.default_group_node_width = 140
+
+    #material_001 interface
+
+    #initialize material_001 nodes
+    #node Principled BSDF.001
+    principled_bsdf_001 = material_001.nodes.new("ShaderNodeBsdfPrincipled")
+    principled_bsdf_001.name = "Principled BSDF.001"
+    principled_bsdf_001.distribution = 'MULTI_GGX'
+    principled_bsdf_001.subsurface_method = 'RANDOM_WALK'
+    principled_bsdf_001.inputs[1].default_value = 0.0  # Metallic
+    principled_bsdf_001.inputs[3].default_value = 1.5  # IOR
+    principled_bsdf_001.inputs[4].default_value = 1.0  # Alpha
+    principled_bsdf_001.inputs[5].default_value = (0.0, 0.0, 0.0)  # Normal
+    principled_bsdf_001.inputs[7].default_value = 0.0  # Diffuse Roughness
+    principled_bsdf_001.inputs[8].default_value = 0.0  # Subsurface Weight
+    principled_bsdf_001.inputs[9].default_value = (1.0, 0.2, 0.1)  # Subsurface Radius
+    principled_bsdf_001.inputs[10].default_value = 0.05  # Subsurface Scale
+    principled_bsdf_001.inputs[12].default_value = 0.0  # Subsurface Anisotropy
+    principled_bsdf_001.inputs[13].default_value = 0.5  # Specular IOR Level
+    principled_bsdf_001.inputs[14].default_value = (1.0, 1.0, 1.0, 1.0)  # Specular Tint
+    principled_bsdf_001.inputs[15].default_value = 0.0  # Anisotropic
+    principled_bsdf_001.inputs[16].default_value = 0.0  # Anisotropic Rotation
+    principled_bsdf_001.inputs[17].default_value = (0.0, 0.0, 0.0)  # Tangent
+    principled_bsdf_001.inputs[18].default_value = 0.0  # Transmission
+    principled_bsdf_001.inputs[19].default_value = 0.0  # Coat Weight
+    principled_bsdf_001.inputs[20].default_value = 0.03  # Coat Roughness
+    principled_bsdf_001.inputs[21].default_value = 1.5  # Coat IOR
+    principled_bsdf_001.inputs[22].default_value = (1.0, 1.0, 1.0, 1.0)  # Coat Tint
+    principled_bsdf_001.inputs[23].default_value = (0.0, 0.0, 0.0)  # Coat Normal
+    principled_bsdf_001.inputs[24].default_value = 0.0  # Sheen Weight
+    principled_bsdf_001.inputs[25].default_value = 0.5  # Sheen Roughness
+    principled_bsdf_001.inputs[26].default_value = (1.0, 1.0, 1.0, 1.0)  # Sheen Tint
+    principled_bsdf_001.inputs[27].default_value = (1.0, 1.0, 1.0, 1.0)  # Emission Color
+    principled_bsdf_001.inputs[28].default_value = 0.0  # Emission Strength
+    principled_bsdf_001.inputs[29].default_value = 0.0  # Thin Film Thickness
+    principled_bsdf_001.inputs[30].default_value = 1.33  # Thin Film IOR
+
+    #node Material Output.001
+    material_output_001 = material_001.nodes.new("ShaderNodeOutputMaterial")
+    material_output_001.name = "Material Output.001"
+    material_output_001.is_active_output = True
+    material_output_001.target = 'ALL'
+    material_output_001.inputs[2].default_value = (0.0, 0.0, 0.0)  # Displacement
+    material_output_001.inputs[3].default_value = 0.0  # Thickness
+    
+    def random_color():
+        return (random.uniform(0.0, 1.0), random.uniform(0.0, 1.0), random.uniform(0.0, 1.0), 1.0)
+    #node Color Ramp
+    color_ramp = material_001.nodes.new("ShaderNodeValToRGB")
+    color_ramp.name = "Color Ramp"
+    color_ramp.color_ramp.color_mode = 'RGB'
+    color_ramp.color_ramp.hue_interpolation = 'NEAR'
+    color_ramp.color_ramp.interpolation = 'CARDINAL'
+    color_ramp.color_ramp.elements.remove(color_ramp.color_ramp.elements[0])
+    color_ramp_cre_0 = color_ramp.color_ramp.elements[0]
+    color_ramp_cre_0.position = 0.16
+    color_ramp_cre_0.alpha = 1.0
+    color_ramp_cre_0.color = random_color()
+    color_ramp_cre_1 = color_ramp.color_ramp.elements.new(0.398)
+    color_ramp_cre_1.alpha = 1.0
+    color_ramp_cre_1.color = random_color()
+    color_ramp_cre_2 = color_ramp.color_ramp.elements.new(0.659)
+    color_ramp_cre_2.alpha = 1.0
+    color_ramp_cre_2.color = random_color()
+    color_ramp_cre_3 = color_ramp.color_ramp.elements.new(1.0)
+    color_ramp_cre_3.alpha = 1.0
+    color_ramp_cre_3.color = random_color()
+
+    #node Noise Texture
+    noise_texture = material_001.nodes.new("ShaderNodeTexNoise")
+    noise_texture.name = "Noise Texture"
+    noise_texture.noise_dimensions = '3D'
+    noise_texture.noise_type = 'HETERO_TERRAIN'
+    noise_texture.normalize = True
+    noise_texture.inputs[0].default_value = (0.0, 0.0, 0.0)
+    noise_texture.inputs[2].default_value = 11.0
+    noise_texture.inputs[3].default_value = 2.1
+    noise_texture.inputs[4].default_value = 0.9
+    noise_texture.inputs[5].default_value = 6.2
+    noise_texture.inputs[6].default_value = random.uniform(0.0, 1.0)
+    noise_texture.inputs[8].default_value = random.uniform(0.0, 3.0)
+
+    #node Color Ramp.001
+    color_ramp_001 = material_001.nodes.new("ShaderNodeValToRGB")
+    color_ramp_001.name = "Color Ramp.001"
+    color_ramp_001.color_ramp.color_mode = 'RGB'
+    color_ramp_001.color_ramp.hue_interpolation = 'NEAR'
+    color_ramp_001.color_ramp.interpolation = 'LINEAR'
+    color_ramp_001.color_ramp.elements.remove(color_ramp_001.color_ramp.elements[0])
+    color_ramp_001_cre_0 = color_ramp_001.color_ramp.elements[0]
+    color_ramp_001_cre_0.position = 0.0
+    color_ramp_001_cre_0.alpha = 1.0
+    color_ramp_001_cre_0.color = (1.0, 1.0, 1.0, 1.0)
+    color_ramp_001_cre_1 = color_ramp_001.color_ramp.elements.new(1.0)
+    color_ramp_001_cre_1.alpha = 1.0
+    color_ramp_001_cre_1.color = (0.0, 0.0, 0.0, 1.0)
+
+    #Set locations
+    principled_bsdf_001.location = (-302, 123)
+    material_output_001.location = (71, 56)
+    color_ramp.location = (-592, 69)
+    noise_texture.location = (-836, 48)
+    color_ramp_001.location = (-591, -165)
+
+    #Set dimensions
+    principled_bsdf_001.width, principled_bsdf_001.height = 240.0, 100.0
+    material_output_001.width, material_output_001.height = 140.0, 100.0
+    color_ramp.width, color_ramp.height = 240.0, 100.0
+    noise_texture.width, noise_texture.height = 140.0, 100.0
+    color_ramp_001.width, color_ramp_001.height = 240.0, 100.0
+
+    #initialize material_001 links
+    #color_ramp.Color -> principled_bsdf_001.Base Color
+    material_001.links.new(color_ramp.outputs[0], principled_bsdf_001.inputs[0])
+    #noise_texture.Fac -> color_ramp_001.Fac
+    material_001.links.new(noise_texture.outputs[0], color_ramp_001.inputs[0])
+    #color_ramp_001.Color -> principled_bsdf_001.Roughness
+    material_001.links.new(color_ramp_001.outputs[0], principled_bsdf_001.inputs[2])
+    #principled_bsdf_001.BSDF -> material_output_001.Surface
+    material_001.links.new(principled_bsdf_001.outputs[0], material_output_001.inputs[0])
+    #noise_texture.Fac -> color_ramp.Fac
+    material_001.links.new(noise_texture.outputs[0], color_ramp.inputs[0])
+
+    return mat1
+
+def create_wave_mixed_material():
+
+    mat = bpy.data.materials.new(name="Material")
+    mat.use_nodes = True
+
+    #initialize Material node group
+    material = mat.node_tree
+
+    #start with a clean node tree
+    for node in material.nodes:
+        material.nodes.remove(node)
+    material.color_tag = 'NONE'
+    material.description = ""
+    material.default_group_node_width = 140
+
+    #initialize material nodes
+    #node Material Output.001
+    material_output_001 = material.nodes.new("ShaderNodeOutputMaterial")
+    material_output_001.name = "Material Output.001"
+    material_output_001.is_active_output = True
+    material_output_001.target = 'ALL'
+    material_output_001.inputs[2].default_value = (0.0, 0.0, 0.0)  # Displacement
+    material_output_001.inputs[3].default_value = 0.0  # Thickness
+    
+    def random_color():
+        return (random.uniform(0.0, 1.0), random.uniform(0.0, 1.0), random.uniform(0.0, 1.0), 1.0)
+
+    #node Principled BSDF.003
+    principled_bsdf_003 = material.nodes.new("ShaderNodeBsdfPrincipled")
+    principled_bsdf_003.name = "Principled BSDF.003"
+    principled_bsdf_003.distribution = 'MULTI_GGX'
+    principled_bsdf_003.subsurface_method = 'RANDOM_WALK'
+    principled_bsdf_003.inputs[0].default_value = random_color()  # Base Color
+    principled_bsdf_003.inputs[1].default_value = 0.0  # Metallic
+    principled_bsdf_003.inputs[2].default_value = 0.5  # Roughness
+    principled_bsdf_003.inputs[3].default_value = 1.5  # IOR
+    principled_bsdf_003.inputs[4].default_value = 1.0  # Alpha
+    principled_bsdf_003.inputs[5].default_value = (0.0, 0.0, 0.0)  # Normal
+    principled_bsdf_003.inputs[7].default_value = 0.0
+    principled_bsdf_003.inputs[8].default_value = 0.0
+    principled_bsdf_003.inputs[9].default_value = (1.0, 0.2, 0.1)
+    principled_bsdf_003.inputs[10].default_value = 0.05
+    principled_bsdf_003.inputs[12].default_value = 0.0
+    principled_bsdf_003.inputs[13].default_value = 0.5
+    principled_bsdf_003.inputs[14].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_003.inputs[15].default_value = 0.0
+    principled_bsdf_003.inputs[16].default_value = 0.0
+    principled_bsdf_003.inputs[17].default_value = (0.0, 0.0, 0.0)
+    principled_bsdf_003.inputs[18].default_value = 0.0
+    principled_bsdf_003.inputs[19].default_value = 0.0
+    principled_bsdf_003.inputs[20].default_value = 0.03
+    principled_bsdf_003.inputs[21].default_value = 1.5
+    principled_bsdf_003.inputs[22].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_003.inputs[23].default_value = (0.0, 0.0, 0.0)
+    principled_bsdf_003.inputs[24].default_value = 0.0
+    principled_bsdf_003.inputs[25].default_value = 0.5
+    principled_bsdf_003.inputs[26].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_003.inputs[27].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_003.inputs[28].default_value = 0.0
+    principled_bsdf_003.inputs[29].default_value = 0.0
+    principled_bsdf_003.inputs[30].default_value = 1.33
+
+    #node Principled BSDF.004
+    principled_bsdf_004 = material.nodes.new("ShaderNodeBsdfPrincipled")
+    principled_bsdf_004.name = "Principled BSDF.004"
+    principled_bsdf_004.distribution = 'MULTI_GGX'
+    principled_bsdf_004.subsurface_method = 'RANDOM_WALK'
+    principled_bsdf_004.inputs[0].default_value = random_color()
+    principled_bsdf_004.inputs[1].default_value = 0.0
+    principled_bsdf_004.inputs[2].default_value = 0.5
+    principled_bsdf_004.inputs[3].default_value = 1.5
+    principled_bsdf_004.inputs[4].default_value = 1.0
+    principled_bsdf_004.inputs[5].default_value = (0.0, 0.0, 0.0)
+    principled_bsdf_004.inputs[7].default_value = 0.0
+    principled_bsdf_004.inputs[8].default_value = 0.0
+    principled_bsdf_004.inputs[9].default_value = (1.0, 0.2, 0.1)
+    principled_bsdf_004.inputs[10].default_value = 0.05
+    principled_bsdf_004.inputs[12].default_value = 0.0
+    principled_bsdf_004.inputs[13].default_value = 0.5
+    principled_bsdf_004.inputs[14].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_004.inputs[15].default_value = 0.0
+    principled_bsdf_004.inputs[16].default_value = 0.0
+    principled_bsdf_004.inputs[17].default_value = (0.0, 0.0, 0.0)
+    principled_bsdf_004.inputs[18].default_value = 0.0
+    principled_bsdf_004.inputs[19].default_value = 0.0
+    principled_bsdf_004.inputs[20].default_value = 0.03
+    principled_bsdf_004.inputs[21].default_value = 1.5
+    principled_bsdf_004.inputs[22].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_004.inputs[23].default_value = (0.0, 0.0, 0.0)
+    principled_bsdf_004.inputs[24].default_value = 0.0
+    principled_bsdf_004.inputs[25].default_value = 0.5
+    principled_bsdf_004.inputs[26].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_004.inputs[27].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_004.inputs[28].default_value = 0.0
+    principled_bsdf_004.inputs[29].default_value = 0.0
+    principled_bsdf_004.inputs[30].default_value = 1.33
+
+    #node Mix Shader.001
+    mix_shader_001 = material.nodes.new("ShaderNodeMixShader")
+    mix_shader_001.name = "Mix Shader.001"
+
+    #node Wave Texture.001
+    wave_texture_001 = material.nodes.new("ShaderNodeTexWave")
+    wave_texture_001.name = "Wave Texture.001"
+    wave_texture_001.bands_direction = 'X'
+    wave_texture_001.rings_direction = 'Y'
+    wave_texture_001.wave_profile = 'SIN'
+    wave_texture_001.wave_type = 'RINGS'
+    wave_texture_001.inputs[0].default_value = (0.0, 0.0, 0.0)
+    wave_texture_001.inputs[1].default_value = random.uniform(1.0, 3.0)
+    wave_texture_001.inputs[2].default_value = random.uniform(2.0, 11.0)
+    wave_texture_001.inputs[3].default_value = 5.3
+    wave_texture_001.inputs[4].default_value = 1.5
+    wave_texture_001.inputs[5].default_value = 0.13
+    wave_texture_001.inputs[6].default_value = 2.7
+
+    #Set locations
+    material_output_001.location = (69.23, -36.07)
+    principled_bsdf_003.location = (-780.06, -233.45)
+    principled_bsdf_004.location = (-783.11, 218.29)
+    mix_shader_001.location = (-240.57, -65.11)
+    wave_texture_001.location = (-381.61, 295.77)
+
+    #Set dimensions
+    material_output_001.width, material_output_001.height = 140.0, 100.0
+    principled_bsdf_003.width, principled_bsdf_003.height = 240.0, 100.0
+    principled_bsdf_004.width, principled_bsdf_004.height = 240.0, 100.0
+    mix_shader_001.width, mix_shader_001.height = 140.0, 100.0
+    wave_texture_001.width, wave_texture_001.height = 150.0, 100.0
+
+    #initialize material links
+    #principled_bsdf_004.BSDF -> mix_shader_001.Shader
+    material.links.new(principled_bsdf_004.outputs[0], mix_shader_001.inputs[1])
+    #principled_bsdf_003.BSDF -> mix_shader_001.Shader
+    material.links.new(principled_bsdf_003.outputs[0], mix_shader_001.inputs[2])
+    #wave_texture_001.Fac -> mix_shader_001.Fac
+    material.links.new(wave_texture_001.outputs[1], mix_shader_001.inputs[0])
+    #mix_shader_001.Shader -> material_output_001.Surface
+    material.links.new(mix_shader_001.outputs[0], material_output_001.inputs[0])
+
+    return mat
+
+def geometry_nodes_001_node_group():
+    
+    geometry_nodes_001 = bpy.data.node_groups.new(type = 'GeometryNodeTree', name = "PlanetTerrainGenerator")
+
+    geometry_nodes_001.color_tag = 'NONE'
+    geometry_nodes_001.description = ""
+    geometry_nodes_001.default_group_node_width = 140
+    
+    geometry_nodes_001.is_modifier = True
+
+    #geometry_nodes_001 interface
+    #Socket Geometry
+    geometry_socket = geometry_nodes_001.interface.new_socket(name = "Geometry", in_out='OUTPUT', socket_type = 'NodeSocketGeometry')
+    geometry_socket.attribute_domain = 'POINT'
+
+    #Socket Geometry
+    geometry_socket_1 = geometry_nodes_001.interface.new_socket(name = "Geometry", in_out='INPUT', socket_type = 'NodeSocketGeometry')
+    geometry_socket_1.attribute_domain = 'POINT'
+
+    #Socket Roughness North Pole
+    roughness_north_pole_socket = geometry_nodes_001.interface.new_socket(name = "Roughness North Pole", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    roughness_north_pole_socket.default_value = 0.0
+    roughness_north_pole_socket.min_value = 0.0
+    roughness_north_pole_socket.max_value = 3.4028234663852886e+38
+    roughness_north_pole_socket.subtype = 'NONE'
+    roughness_north_pole_socket.attribute_domain = 'POINT'
+
+    #Socket Roughness Equator
+    roughness_equator_socket = geometry_nodes_001.interface.new_socket(name = "Roughness Equator", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    roughness_equator_socket.default_value = 0.0
+    roughness_equator_socket.min_value = 0.0
+    roughness_equator_socket.max_value = 3.4028234663852886e+38
+    roughness_equator_socket.subtype = 'NONE'
+    roughness_equator_socket.attribute_domain = 'POINT'
+
+    #Socket Roughness South Pole
+    roughness_south_pole_socket = geometry_nodes_001.interface.new_socket(name = "Roughness South Pole", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    roughness_south_pole_socket.default_value = 0.0
+    roughness_south_pole_socket.min_value = 0.0
+    roughness_south_pole_socket.max_value = 3.402820018375656e+38
+    roughness_south_pole_socket.subtype = 'NONE'
+    roughness_south_pole_socket.attribute_domain = 'POINT'
+
+    #initialize geometry_nodes_001 nodes
+    #node Group Input
+    group_input = geometry_nodes_001.nodes.new("NodeGroupInput")
+    group_input.name = "Group Input"
+
+    #node Group Output
+    group_output = geometry_nodes_001.nodes.new("NodeGroupOutput")
+    group_output.name = "Group Output"
+    group_output.is_active_output = True
+
+    #node Transform Geometry
+    transform_geometry = geometry_nodes_001.nodes.new("GeometryNodeTransform")
+    transform_geometry.name = "Transform Geometry"
+    transform_geometry.mode = 'COMPONENTS'
+    #Translation
+    transform_geometry.inputs[1].default_value = (0.0, 0.0, 0.0)
+    #Rotation
+    transform_geometry.inputs[2].default_value = (0.0, 0.0, 0.0)
+    #Scale
+    transform_geometry.inputs[3].default_value = (1.0, 1.0, 1.0)
+
+    #node Subdivide Mesh
+    subdivide_mesh = geometry_nodes_001.nodes.new("GeometryNodeSubdivideMesh")
+    subdivide_mesh.name = "Subdivide Mesh"
+    #Level
+    subdivide_mesh.inputs[1].default_value = 3
+
+    #node Set Position
+    set_position = geometry_nodes_001.nodes.new("GeometryNodeSetPosition")
+    set_position.name = "Set Position"
+    #Selection
+    set_position.inputs[1].default_value = True
+    #Position
+    set_position.inputs[2].default_value = (0.0, 0.0, 0.0)
+
+    #node Distribute Points on Faces
+    distribute_points_on_faces = geometry_nodes_001.nodes.new("GeometryNodeDistributePointsOnFaces")
+    distribute_points_on_faces.name = "Distribute Points on Faces"
+    distribute_points_on_faces.distribute_method = 'RANDOM'
+    distribute_points_on_faces.use_legacy_normal = False
+    #Selection
+    distribute_points_on_faces.inputs[1].default_value = True
+    #Density
+    distribute_points_on_faces.inputs[4].default_value = 0.0
+    #Seed
+    distribute_points_on_faces.inputs[6].default_value = 0
+
+    #node Cone
+    cone = geometry_nodes_001.nodes.new("GeometryNodeMeshCone")
+    cone.name = "Cone"
+    cone.fill_type = 'NGON'
+    #Vertices
+    cone.inputs[0].default_value = 3
+    #Side Segments
+    cone.inputs[1].default_value = 1
+    #Fill Segments
+    cone.inputs[2].default_value = 1
+    #Radius Top
+    cone.inputs[3].default_value = 0.0
+    #Radius Bottom
+    cone.inputs[4].default_value = 0.10000000149011612
+    #Depth
+    cone.inputs[5].default_value = 0.6000000238418579
+
+    #node Instance on Points
+    instance_on_points = geometry_nodes_001.nodes.new("GeometryNodeInstanceOnPoints")
+    instance_on_points.name = "Instance on Points"
+    #Selection
+    instance_on_points.inputs[1].default_value = True
+    #Pick Instance
+    instance_on_points.inputs[3].default_value = False
+    #Instance Index
+    instance_on_points.inputs[4].default_value = 0
+
+    #node Set Material
+    set_material = geometry_nodes_001.nodes.new("GeometryNodeSetMaterial")
+    set_material.name = "Set Material"
+    #Selection
+    set_material.inputs[1].default_value = True
+
+    #node Set Material.001
+    set_material_001 = geometry_nodes_001.nodes.new("GeometryNodeSetMaterial")
+    set_material_001.name = "Set Material.001"
+    #Selection
+    set_material_001.inputs[1].default_value = True
+
+    #node Rotate Instances
+    rotate_instances = geometry_nodes_001.nodes.new("GeometryNodeRotateInstances")
+    rotate_instances.name = "Rotate Instances"
+    #Selection
+    rotate_instances.inputs[1].default_value = True
+    #Pivot Point
+    rotate_instances.inputs[3].default_value = (0.0, 0.0, 0.0)
+    #Local Space
+    rotate_instances.inputs[4].default_value = True
+
+    #node Realize Instances
+    realize_instances = geometry_nodes_001.nodes.new("GeometryNodeRealizeInstances")
+    realize_instances.name = "Realize Instances"
+    #Selection
+    realize_instances.inputs[1].default_value = True
+    #Realize All
+    realize_instances.inputs[2].default_value = True
+    #Depth
+    realize_instances.inputs[3].default_value = 0
+
+    #node Join Geometry
+    join_geometry = geometry_nodes_001.nodes.new("GeometryNodeJoinGeometry")
+    join_geometry.name = "Join Geometry"
+
+    def random_scale():
+        return 0.0 if random.random() < 0.10 else random.uniform(0.001, 10.0)
+
+    #node Noise Texture
+    noise_texture = geometry_nodes_001.nodes.new("ShaderNodeTexNoise")
+    noise_texture.name = "Noise Texture"
+    noise_texture.noise_dimensions = '3D'
+    noise_texture.noise_type = 'FBM'
+    noise_texture.normalize = True
+    #Vector
+    noise_texture.inputs[0].default_value = (0.0, 0.0, 0.0)
+    #Scale
+    noise_texture.inputs[2].default_value = random_scale()
+    #Detail
+    noise_texture.inputs[3].default_value = 14.999999046325684
+    #Roughness
+    noise_texture.inputs[4].default_value = 1.0
+    #Lacunarity
+    noise_texture.inputs[5].default_value = 0.3999999761581421
+    #Distortion
+    noise_texture.inputs[8].default_value = 0.40000009536743164
+
+    #node Noise Texture.001
+    noise_texture_001 = geometry_nodes_001.nodes.new("ShaderNodeTexNoise")
+    noise_texture_001.name = "Noise Texture.001"
+    noise_texture_001.noise_dimensions = '3D'
+    noise_texture_001.noise_type = 'FBM'
+    noise_texture_001.normalize = True
+    #Vector
+    noise_texture_001.inputs[0].default_value = (0.0, 0.0, 0.0)
+    #Scale
+    noise_texture_001.inputs[2].default_value = random_scale()
+    #Detail
+    noise_texture_001.inputs[3].default_value = 15.0
+    #Roughness
+    noise_texture_001.inputs[4].default_value = 0.7266666889190674
+    #Lacunarity
+    noise_texture_001.inputs[5].default_value = 0.09999999403953552
+    #Distortion
+    noise_texture_001.inputs[8].default_value = 0.7999999523162842
+
+    #node Noise Texture.002
+    noise_texture_002 = geometry_nodes_001.nodes.new("ShaderNodeTexNoise")
+    noise_texture_002.name = "Noise Texture.002"
+    noise_texture_002.noise_dimensions = '3D'
+    noise_texture_002.noise_type = 'FBM'
+    noise_texture_002.normalize = True
+    #Vector
+    noise_texture_002.inputs[0].default_value = (0.0, 0.0, 0.0)
+    #Scale
+    noise_texture_002.inputs[2].default_value = random_scale()
+    #Detail
+    noise_texture_002.inputs[3].default_value = 15.0
+    #Roughness
+    noise_texture_002.inputs[4].default_value = 1.0
+    #Lacunarity
+    noise_texture_002.inputs[5].default_value = 0.2999999523162842
+    #Distortion
+    noise_texture_002.inputs[8].default_value = 1.1999999284744263
+
+    #node Combine XYZ
+    combine_xyz = geometry_nodes_001.nodes.new("ShaderNodeCombineXYZ")
+    combine_xyz.name = "Combine XYZ"
+
+    #node Combine XYZ.001
+    combine_xyz_001 = geometry_nodes_001.nodes.new("ShaderNodeCombineXYZ")
+    combine_xyz_001.name = "Combine XYZ.001"
+    #X
+    combine_xyz_001.inputs[0].default_value = 1.0
+    #Y
+    combine_xyz_001.inputs[1].default_value = 1.0
+
+    #node Random Value
+    random_value = geometry_nodes_001.nodes.new("FunctionNodeRandomValue")
+    random_value.name = "Random Value"
+    random_value.data_type = 'FLOAT'
+    #Min_001
+    random_value.inputs[2].default_value = 1.0
+    #Max_001
+    random_value.inputs[3].default_value = 2.0
+    #ID
+    random_value.inputs[7].default_value = 0
+    #Seed
+    random_value.inputs[8].default_value = 2
+
+    #node Random Value.001
+    random_value_001 = geometry_nodes_001.nodes.new("FunctionNodeRandomValue")
+    random_value_001.name = "Random Value.001"
+    random_value_001.data_type = 'FLOAT'
+    #Min_001
+    random_value_001.inputs[2].default_value = 2.0
+    #Max_001
+    random_value_001.inputs[3].default_value = 8.0
+    #ID
+    random_value_001.inputs[7].default_value = 0
+    #Seed
+    random_value_001.inputs[8].default_value = 0
+
+    #node Math.001
+    math_001 = geometry_nodes_001.nodes.new("ShaderNodeMath")
+    math_001.name = "Math.001"
+    math_001.operation = 'SINE'
+    math_001.use_clamp = False
+
+    #node Math.002
+    math_002 = geometry_nodes_001.nodes.new("ShaderNodeMath")
+    math_002.name = "Math.002"
+    math_002.operation = 'DIVIDE'
+    math_002.use_clamp = False
+
+    #node Combine XYZ.002
+    combine_xyz_002 = geometry_nodes_001.nodes.new("ShaderNodeCombineXYZ")
+    combine_xyz_002.name = "Combine XYZ.002"
+    #Y
+    combine_xyz_002.inputs[1].default_value = 0.0
+    #Z
+    combine_xyz_002.inputs[2].default_value = 0.0
+
+    #node Scene Time
+    scene_time = geometry_nodes_001.nodes.new("GeometryNodeInputSceneTime")
+    scene_time.name = "Scene Time"
+
+    #node Math.003
+    math_003 = geometry_nodes_001.nodes.new("ShaderNodeMath")
+    math_003.name = "Math.003"
+    math_003.operation = 'MULTIPLY'
+    math_003.use_clamp = False
+    #Value
+    math_003.inputs[0].default_value = 0.39999961853027344
+
+    #Set locations
+    group_input.location = (-3186.977294921875, -21.53408432006836)
+    group_output.location = (1032.559326171875, 146.28684997558594)
+    transform_geometry.location = (-2729.3271484375, 85.27590942382812)
+    subdivide_mesh.location = (-2554.25732421875, 89.90591430664062)
+    set_position.location = (-1344.020751953125, 71.19683837890625)
+    distribute_points_on_faces.location = (-1143.3408203125, 16.68685531616211)
+    cone.location = (-1265.080810546875, -338.63311767578125)
+    instance_on_points.location = (-743.5906982421875, 16.33683204650879)
+    set_material.location = (-523.2507934570312, 14.786855697631836)
+    set_material_001.location = (-200.81072998046875, 112.96684265136719)
+    rotate_instances.location = (251.0092315673828, 39.21685028076172)
+    realize_instances.location = (470.74920654296875, 25.956851959228516)
+    join_geometry.location = (690.7293090820312, 142.0968475341797)
+    noise_texture.location = (-2427.94775390625, -464.2940368652344)
+    noise_texture_001.location = (-2603.04736328125, -473.364013671875)
+    noise_texture_002.location = (-2793.61767578125, -462.3540954589844)
+    combine_xyz.location = (-2142.016357421875, -47.34838104248047)
+    combine_xyz_001.location = (-889.7607421875, -387.68316650390625)
+    random_value.location = (-1086.900634765625, -431.6431579589844)
+    random_value_001.location = (-335.46075439453125, -195.02313232421875)
+    math_001.location = (-334.3107604980469, -51.5831413269043)
+    math_002.location = (-158.78074645996094, -51.5831413269043)
+    combine_xyz_002.location = (52.92924880981445, -28.16316795349121)
+    scene_time.location = (-526.57080078125, -121.29315185546875)
+    math_003.location = (-2454.8173828125, -278.44610595703125)
+
+    #Set dimensions
+    group_input.width, group_input.height = 140.0, 100.0
+    group_output.width, group_output.height = 140.0, 100.0
+    transform_geometry.width, transform_geometry.height = 140.0, 100.0
+    subdivide_mesh.width, subdivide_mesh.height = 140.0, 100.0
+    set_position.width, set_position.height = 140.0, 100.0
+    distribute_points_on_faces.width, distribute_points_on_faces.height = 178.1300048828125, 100.0
+    cone.width, cone.height = 140.0, 100.0
+    instance_on_points.width, instance_on_points.height = 140.0, 100.0
+    set_material.width, set_material.height = 140.0, 100.0
+    set_material_001.width, set_material_001.height = 140.0, 100.0
+    rotate_instances.width, rotate_instances.height = 140.0, 100.0
+    realize_instances.width, realize_instances.height = 140.0, 100.0
+    join_geometry.width, join_geometry.height = 140.0, 100.0
+    noise_texture.width, noise_texture.height = 140.0, 100.0
+    noise_texture_001.width, noise_texture_001.height = 140.0, 100.0
+    noise_texture_002.width, noise_texture_002.height = 140.0, 100.0
+    combine_xyz.width, combine_xyz.height = 140.0, 100.0
+    combine_xyz_001.width, combine_xyz_001.height = 140.0, 100.0
+    random_value.width, random_value.height = 140.0, 100.0
+    random_value_001.width, random_value_001.height = 140.0, 100.0
+    math_001.width, math_001.height = 140.0, 100.0
+    math_002.width, math_002.height = 140.0, 100.0
+    combine_xyz_002.width, combine_xyz_002.height = 140.0, 100.0
+    scene_time.width, scene_time.height = 140.0, 100.0
+    math_003.width, math_003.height = 140.0, 100.0
+
+    #initialize geometry_nodes_001 links
+    #group_input.Geometry -> transform_geometry.Geometry
+    geometry_nodes_001.links.new(group_input.outputs[0], transform_geometry.inputs[0])
+    #transform_geometry.Geometry -> subdivide_mesh.Mesh
+    geometry_nodes_001.links.new(transform_geometry.outputs[0], subdivide_mesh.inputs[0])
+    #subdivide_mesh.Mesh -> set_position.Geometry
+    geometry_nodes_001.links.new(subdivide_mesh.outputs[0], set_position.inputs[0])
+    #noise_texture.Fac -> combine_xyz.Z
+    geometry_nodes_001.links.new(noise_texture.outputs[0], combine_xyz.inputs[2])
+    #distribute_points_on_faces.Points -> instance_on_points.Points
+    geometry_nodes_001.links.new(distribute_points_on_faces.outputs[0], instance_on_points.inputs[0])
+    #distribute_points_on_faces.Normal -> instance_on_points.Rotation
+    geometry_nodes_001.links.new(distribute_points_on_faces.outputs[1], instance_on_points.inputs[5])
+    #cone.Mesh -> instance_on_points.Instance
+    geometry_nodes_001.links.new(cone.outputs[0], instance_on_points.inputs[2])
+    #random_value.Value -> combine_xyz_001.Z
+    geometry_nodes_001.links.new(random_value.outputs[1], combine_xyz_001.inputs[2])
+    #combine_xyz_001.Vector -> instance_on_points.Scale
+    geometry_nodes_001.links.new(combine_xyz_001.outputs[0], instance_on_points.inputs[6])
+    #instance_on_points.Instances -> set_material.Geometry
+    geometry_nodes_001.links.new(instance_on_points.outputs[0], set_material.inputs[0])
+    #set_material.Geometry -> rotate_instances.Instances
+    geometry_nodes_001.links.new(set_material.outputs[0], rotate_instances.inputs[0])
+    #set_position.Geometry -> set_material_001.Geometry
+    geometry_nodes_001.links.new(set_position.outputs[0], set_material_001.inputs[0])
+    #set_material_001.Geometry -> join_geometry.Geometry
+    geometry_nodes_001.links.new(set_material_001.outputs[0], join_geometry.inputs[0])
+    #rotate_instances.Instances -> realize_instances.Geometry
+    geometry_nodes_001.links.new(rotate_instances.outputs[0], realize_instances.inputs[0])
+    #join_geometry.Geometry -> group_output.Geometry
+    geometry_nodes_001.links.new(join_geometry.outputs[0], group_output.inputs[0])
+    #scene_time.Seconds -> math_001.Value
+    geometry_nodes_001.links.new(scene_time.outputs[0], math_001.inputs[0])
+    #math_001.Value -> math_002.Value
+    geometry_nodes_001.links.new(math_001.outputs[0], math_002.inputs[0])
+    #random_value_001.Value -> math_002.Value
+    geometry_nodes_001.links.new(random_value_001.outputs[1], math_002.inputs[1])
+    #math_002.Value -> combine_xyz_002.X
+    geometry_nodes_001.links.new(math_002.outputs[0], combine_xyz_002.inputs[0])
+    #combine_xyz_002.Vector -> rotate_instances.Rotation
+    geometry_nodes_001.links.new(combine_xyz_002.outputs[0], rotate_instances.inputs[2])
+    #noise_texture_001.Fac -> math_003.Value
+    geometry_nodes_001.links.new(noise_texture_001.outputs[0], math_003.inputs[1])
+    #math_003.Value -> combine_xyz.Y
+    geometry_nodes_001.links.new(math_003.outputs[0], combine_xyz.inputs[1])
+    #combine_xyz.Vector -> set_position.Offset
+    geometry_nodes_001.links.new(combine_xyz.outputs[0], set_position.inputs[3])
+    #noise_texture_002.Fac -> combine_xyz.X
+    geometry_nodes_001.links.new(noise_texture_002.outputs[0], combine_xyz.inputs[0])
+    #realize_instances.Geometry -> join_geometry.Geometry
+    geometry_nodes_001.links.new(realize_instances.outputs[0], join_geometry.inputs[0])
+    return geometry_nodes_001
+
+def geometry_nodes_002_node_group():
+    geometry_nodes_002 = bpy.data.node_groups.new(type = 'GeometryNodeTree', name = "PlanetObjectPlacer")
+
+    geometry_nodes_002.color_tag = 'NONE'
+    geometry_nodes_002.description = ""
+    geometry_nodes_002.default_group_node_width = 140
+    
+    geometry_nodes_002.is_modifier = True
+    geometry_nodes_002.is_tool = True
+    geometry_nodes_002.is_mode_object = False
+    geometry_nodes_002.is_mode_edit = False
+    geometry_nodes_002.is_mode_sculpt = False
+    geometry_nodes_002.is_type_curve = False
+    geometry_nodes_002.is_type_mesh = False
+    geometry_nodes_002.is_type_point_cloud = False
+
+    #geometry_nodes_002 interface
+    #Socket Geometry
+    geometry_socket = geometry_nodes_002.interface.new_socket(name = "Geometry", in_out='OUTPUT', socket_type = 'NodeSocketGeometry')
+    geometry_socket.attribute_domain = 'POINT'
+
+    #Socket Size
+    size_socket = geometry_nodes_002.interface.new_socket(name = "Size", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    size_socket.default_value = 50.0
+    size_socket.min_value = 0.0
+    size_socket.max_value = 3.4028234663852886e+38
+    size_socket.subtype = 'DISTANCE'
+    size_socket.attribute_domain = 'POINT'
+
+    #Socket Distance Min
+    distance_min_socket = geometry_nodes_002.interface.new_socket(name = "Distance Min", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    distance_min_socket.default_value = 0.5
+    distance_min_socket.min_value = 0.0
+    distance_min_socket.max_value = 3.4028234663852886e+38
+    distance_min_socket.subtype = 'DISTANCE'
+    distance_min_socket.attribute_domain = 'POINT'
+
+    #Socket Density Max
+    density_max_socket = geometry_nodes_002.interface.new_socket(name = "Density Max", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    density_max_socket.default_value = 40.0
+    density_max_socket.min_value = 0.0
+    density_max_socket.max_value = 3.4028234663852886e+38
+    density_max_socket.subtype = 'NONE'
+    density_max_socket.attribute_domain = 'POINT'
+
+    #Socket Seed
+    seed_socket = geometry_nodes_002.interface.new_socket(name = "Seed", in_out='INPUT', socket_type = 'NodeSocketInt')
+    seed_socket.default_value = 0
+    seed_socket.min_value = -10000
+    seed_socket.max_value = 10000
+    seed_socket.subtype = 'NONE'
+    seed_socket.attribute_domain = 'POINT'
+
+    #Socket Collection
+    collection_socket = geometry_nodes_002.interface.new_socket(name = "Collection", in_out='INPUT', socket_type = 'NodeSocketObject')
+    collection_socket.attribute_domain = 'POINT'
+
+    #Socket Scale Min
+    scale_min_socket = geometry_nodes_002.interface.new_socket(name = "Scale Min", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    scale_min_socket.default_value = 0.0
+    scale_min_socket.min_value = -3.4028234663852886e+38
+    scale_min_socket.max_value = 3.4028234663852886e+38
+    scale_min_socket.subtype = 'NONE'
+    scale_min_socket.attribute_domain = 'POINT'
+
+    #Socket Scale Max
+    scale_max_socket = geometry_nodes_002.interface.new_socket(name = "Scale Max", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    scale_max_socket.default_value = 2.0999999046325684
+    scale_max_socket.min_value = -3.4028234663852886e+38
+    scale_max_socket.max_value = 3.4028234663852886e+38
+    scale_max_socket.subtype = 'NONE'
+    scale_max_socket.attribute_domain = 'POINT'
+
+    #Socket Flag Color
+    flag_color_socket = geometry_nodes_002.interface.new_socket(name = "Flag Color", in_out='INPUT', socket_type = 'NodeSocketMaterial')
+    flag_color_socket.attribute_domain = 'POINT'
+
+    #Socket Planet Color
+    planet_color_socket = geometry_nodes_002.interface.new_socket(name = "Planet Color", in_out='INPUT', socket_type = 'NodeSocketMaterial')
+    planet_color_socket.attribute_domain = 'POINT'
+
+    #initialize geometry_nodes_002 nodes
+    #node Group Output
+    group_output = geometry_nodes_002.nodes.new("NodeGroupOutput")
+    group_output.name = "Group Output"
+    group_output.is_active_output = True
+
+    #node Join Geometry
+    join_geometry = geometry_nodes_002.nodes.new("GeometryNodeJoinGeometry")
+    join_geometry.name = "Join Geometry"
+
+    #node Instance on Points
+    instance_on_points = geometry_nodes_002.nodes.new("GeometryNodeInstanceOnPoints")
+    instance_on_points.name = "Instance on Points"
+    #Selection
+    instance_on_points.inputs[1].default_value = True
+    #Pick Instance
+    instance_on_points.inputs[3].default_value = False
+    #Instance Index
+    instance_on_points.inputs[4].default_value = 0
+    #Scale
+    instance_on_points.inputs[6].default_value = (1.0, 1.0, 1.0)
+
+    #node Object Info.001
+    object_info_001 = geometry_nodes_002.nodes.new("GeometryNodeObjectInfo")
+    object_info_001.name = "Object Info.001"
+    object_info_001.transform_space = 'ORIGINAL'
+    #As Instance
+    object_info_001.inputs[1].default_value = False
+
+    #node Random Value.007
+    random_value_007 = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
+    random_value_007.name = "Random Value.007"
+    random_value_007.data_type = 'FLOAT_VECTOR'
+    #ID
+    random_value_007.inputs[7].default_value = 0
+    #Seed
+    random_value_007.inputs[8].default_value = 9
+
+    #node Set Material Index
+    set_material_index = geometry_nodes_002.nodes.new("GeometryNodeSetMaterialIndex")
+    set_material_index.name = "Set Material Index"
+    #Selection
+    set_material_index.inputs[1].default_value = True
+
+    #node Capture Attribute
+    capture_attribute = geometry_nodes_002.nodes.new("GeometryNodeCaptureAttribute")
+    capture_attribute.name = "Capture Attribute"
+    capture_attribute.active_index = 0
+    capture_attribute.capture_items.clear()
+    capture_attribute.capture_items.new('FLOAT', "Value")
+    capture_attribute.capture_items["Value"].data_type = 'FLOAT'
+    capture_attribute.domain = 'INSTANCE'
+
+    #node Instance on Points.001
+    instance_on_points_001 = geometry_nodes_002.nodes.new("GeometryNodeInstanceOnPoints")
+    instance_on_points_001.name = "Instance on Points.001"
+    #Pick Instance
+    instance_on_points_001.inputs[3].default_value = False
+
+    #node Realize Instances
+    realize_instances = geometry_nodes_002.nodes.new("GeometryNodeRealizeInstances")
+    realize_instances.name = "Realize Instances"
+    #Selection
+    realize_instances.inputs[1].default_value = True
+    #Realize All
+    realize_instances.inputs[2].default_value = True
+    #Depth
+    realize_instances.inputs[3].default_value = 0
+
+    #node Realize Instances.001
+    realize_instances_001 = geometry_nodes_002.nodes.new("GeometryNodeRealizeInstances")
+    realize_instances_001.name = "Realize Instances.001"
+    #Selection
+    realize_instances_001.inputs[1].default_value = True
+    #Realize All
+    realize_instances_001.inputs[2].default_value = True
+    #Depth
+    realize_instances_001.inputs[3].default_value = 0
+
+    #node Set Material.001
+    set_material_001 = geometry_nodes_002.nodes.new("GeometryNodeSetMaterial")
+    set_material_001.name = "Set Material.001"
+    #Selection
+    set_material_001.inputs[1].default_value = True
+
+    #node Random Value.001
+    random_value_001 = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
+    random_value_001.name = "Random Value.001"
+    random_value_001.data_type = 'INT'
+    #Min_002
+    random_value_001.inputs[4].default_value = 1
+    #Max_002
+    random_value_001.inputs[5].default_value = 3
+    #Seed
+    random_value_001.inputs[8].default_value = 0
+
+    #node Index
+    index = geometry_nodes_002.nodes.new("GeometryNodeInputIndex")
+    index.name = "Index"
+
+    #node Set Material.002
+    set_material_002 = geometry_nodes_002.nodes.new("GeometryNodeSetMaterial")
+    set_material_002.name = "Set Material.002"
+    #Selection
+    set_material_002.inputs[1].default_value = True
+
+    #node Combine XYZ
+    combine_xyz = geometry_nodes_002.nodes.new("ShaderNodeCombineXYZ")
+    combine_xyz.name = "Combine XYZ"
+    #Y
+    combine_xyz.inputs[1].default_value = 0.0
+    #Z
+    combine_xyz.inputs[2].default_value = 0.0
+
+    #node Random Value
+    random_value = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
+    random_value.name = "Random Value"
+    random_value.data_type = 'FLOAT'
+    #Min_001
+    random_value.inputs[2].default_value = 0.0
+    #Max_001
+    random_value.inputs[3].default_value = 1.0
+    #ID
+    random_value.inputs[7].default_value = 0
+    #Seed
+    random_value.inputs[8].default_value = 1
+
+    #node Transform Geometry.001
+    transform_geometry_001 = geometry_nodes_002.nodes.new("GeometryNodeTransform")
+    transform_geometry_001.name = "Transform Geometry.001"
+    transform_geometry_001.mode = 'COMPONENTS'
+    #Translation
+    transform_geometry_001.inputs[1].default_value = (0.0, 0.0, 0.0)
+    #Rotation
+    transform_geometry_001.inputs[2].default_value = (0.0, 0.0, 0.0)
+    #Scale
+    random_scale = random.uniform(0.5, 35.0)
+    transform_geometry_001.inputs[3].default_value = (random_scale, random_scale, random_scale)
+
+    #node Distribute Points on Faces
+    distribute_points_on_faces = geometry_nodes_002.nodes.new("GeometryNodeDistributePointsOnFaces")
+    distribute_points_on_faces.name = "Distribute Points on Faces"
+    distribute_points_on_faces.distribute_method = 'POISSON'
+    distribute_points_on_faces.use_legacy_normal = False
+    #Selection
+    distribute_points_on_faces.inputs[1].default_value = True
+    #Distance Min
+    distribute_points_on_faces.inputs[2].default_value = 5000.3994140625
+    #Density Max
+    distribute_points_on_faces.inputs[3].default_value = 0.8000001907348633
+    #Density Factor
+    distribute_points_on_faces.inputs[5].default_value = 1.0
+    #Seed
+    distribute_points_on_faces.inputs[6].default_value = 0
+
+    #node Object Info
+    object_info = geometry_nodes_002.nodes.new("GeometryNodeObjectInfo")
+    object_info.name = "Object Info"
+    object_info.transform_space = 'ORIGINAL'
+    # As Instance
+    object_info.inputs[1].default_value = False
+
+    #node Group Input.001
+    group_input_001 = geometry_nodes_002.nodes.new("NodeGroupInput")
+    group_input_001.name = "Group Input.001"
+
+    #node Grid
+    grid = geometry_nodes_002.nodes.new("GeometryNodeMeshGrid")
+    grid.name = "Grid"
+    #Vertices X
+    grid.inputs[2].default_value = 2
+    #Vertices Y
+    grid.inputs[3].default_value = 2
+
+    #node Distribute Points on Faces.001
+    distribute_points_on_faces_001 = geometry_nodes_002.nodes.new("GeometryNodeDistributePointsOnFaces")
+    distribute_points_on_faces_001.name = "Distribute Points on Faces.001"
+    distribute_points_on_faces_001.distribute_method = 'POISSON'
+    distribute_points_on_faces_001.use_legacy_normal = False
+    #Selection
+    distribute_points_on_faces_001.inputs[1].default_value = True
+    #Density Factor
+    distribute_points_on_faces_001.inputs[5].default_value = 1.0
+
+    #node Scene Time
+    scene_time = geometry_nodes_002.nodes.new("GeometryNodeInputSceneTime")
+    scene_time.name = "Scene Time"
+
+    #node Math
+    math = geometry_nodes_002.nodes.new("ShaderNodeMath")
+    math.name = "Math"
+    math.operation = 'POWER'
+    math.use_clamp = False
+    #Value_001
+    math.inputs[1].default_value = 0.9
+    
+    # node Math.001
+    math_001 = geometry_nodes_002.nodes.new("ShaderNodeMath")
+    math_001.name = "Math.001"
+    math_001.operation = 'MULTIPLY'
+    math_001.use_clamp = False
+
+    # Get user-defined density range from scene property
+    scene = bpy.context.scene
+    min_density = scene.planet_generator_props.cube_density_min
+    max_density = scene.planet_generator_props.cube_density_max
+
+    # Clamp and calculate random percentage
+    min_density = max(0.0, min(min_density, 100.0))
+    max_density = max(min_density, min(max_density, 100.0))
+    # --- Conditional Density Assignment ---
+    if random_scale > 20.0 or random.random() < 0.1:
+        random_density_percent = 0.0
+    else:
+        random_density_percent = random.uniform(min_density, max_density)
+
+    distribute_points_on_faces_001.inputs[3].default_value = random_density_percent
+    # Normalize to 0.0–1.0 (because later it's multiplied by 1.0)
+    math_001.inputs[0].default_value = random_density_percent * 0.001
+    math_001.inputs[1].default_value = 1.0
+
+    print(f"[{scene.frame_current}] Assigned {random_density_percent:.1f}% cube density")
+
+    #node Random Value.005
+    random_value_005 = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
+    random_value_005.name = "Random Value.005"
+    random_value_005.data_type = 'BOOLEAN'
+    #ID
+    random_value_005.inputs[7].default_value = 0
+
+    #node Random Value.006
+    random_value_006 = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
+    random_value_006.name = "Random Value.006"
+    random_value_006.data_type = 'FLOAT'
+    #Min_001
+    random_value_006.inputs[2].default_value = 0.0
+    #Max_001
+    random_value_006.inputs[3].default_value = 1.0
+    #ID
+    random_value_006.inputs[7].default_value = 0
+    #Seed
+    random_value_006.inputs[8].default_value = 0
+
+    #Set locations
+    group_output.location = (3097.005126953125, 421.7918395996094)
+    join_geometry.location = (2476.300048828125, 340.8503112792969)
+    instance_on_points.location = (-440.22442626953125, -106.68757629394531)
+    object_info_001.location = (469.8846130371094, -568.2789916992188)
+    random_value_007.location = (521.5838012695312, -1005.0852661132812)
+    set_material_index.location = (2036.3941650390625, -251.41989135742188)
+    capture_attribute.location = (1543.8597412109375, -259.3602294921875)
+    instance_on_points_001.location = (1236.3236083984375, -156.49606323242188)
+    realize_instances.location = (-246.6336212158203, 3.333569288253784)
+    realize_instances_001.location = (1777.056640625, -249.771728515625)
+    set_material_001.location = (471.2767639160156, 116.178955078125)
+    random_value_001.location = (1819.9619140625, -461.0506286621094)
+    index.location = (1079.156005859375, -480.76470947265625)
+    set_material_002.location = (2255.9990234375, -92.3603515625)
+    combine_xyz.location = (-657.6397705078125, -567.0027465820312)
+    random_value.location = (-1043.187744140625, -597.7901611328125)
+    transform_geometry_001.location = (-733.7864379882812, -165.15884399414062)
+    distribute_points_on_faces.location = (-738.1315307617188, 172.11691284179688)
+    object_info.location = (-1008.8260498046875, -254.1938018798828)
+    group_input_001.location = (-1365.7286376953125, -786.5611572265625)
+    grid.location = (-1031.822021484375, 68.04568481445312)
+    distribute_points_on_faces_001.location = (465.1046447753906, -289.7320251464844)
+    scene_time.location = (-46.963134765625, -804.6065063476562)
+    math.location = (392.6578674316406, -756.1470336914062)
+    math_001.location = (172.8000030517578, -761.4107666015625)
+    random_value_005.location = (566.895751953125, -836.0068359375)
+    random_value_006.location = (951.8902587890625, -799.7195434570312)
+
+    #Set dimensions
+    group_output.width, group_output.height = 140.0, 100.0
+    join_geometry.width, join_geometry.height = 140.0, 100.0
+    instance_on_points.width, instance_on_points.height = 140.0, 100.0
+    object_info_001.width, object_info_001.height = 140.0, 100.0
+    random_value_007.width, random_value_007.height = 140.0, 100.0
+    set_material_index.width, set_material_index.height = 140.0, 100.0
+    capture_attribute.width, capture_attribute.height = 140.0, 100.0
+    instance_on_points_001.width, instance_on_points_001.height = 140.0, 100.0
+    realize_instances.width, realize_instances.height = 140.0, 100.0
+    realize_instances_001.width, realize_instances_001.height = 140.0, 100.0
+    set_material_001.width, set_material_001.height = 140.0, 100.0
+    random_value_001.width, random_value_001.height = 140.0, 100.0
+    index.width, index.height = 140.0, 100.0
+    set_material_002.width, set_material_002.height = 140.0, 100.0
+    combine_xyz.width, combine_xyz.height = 140.0, 100.0
+    random_value.width, random_value.height = 140.0, 100.0
+    transform_geometry_001.width, transform_geometry_001.height = 140.0, 100.0
+    distribute_points_on_faces.width, distribute_points_on_faces.height = 170.0, 100.0
+    object_info.width, object_info.height = 140.0, 100.0
+    group_input_001.width, group_input_001.height = 140.0, 100.0
+    grid.width, grid.height = 140.0, 100.0
+    distribute_points_on_faces_001.width, distribute_points_on_faces_001.height = 170.0, 100.0
+    scene_time.width, scene_time.height = 140.0, 100.0
+    math.width, math.height = 140.0, 100.0
+    math_001.width, math_001.height = 140.0, 100.0
+    random_value_005.width, random_value_005.height = 140.0, 100.0
+    random_value_006.width, random_value_006.height = 140.0, 100.0
+
+    #initialize geometry_nodes_002 links
+    geometry_nodes_002.links.new(transform_geometry_001.outputs[0], instance_on_points.inputs[2])
+    #random_value.Value -> combine_xyz.X
+    geometry_nodes_002.links.new(random_value.outputs[1], combine_xyz.inputs[0])
+    #combine_xyz.Vector -> instance_on_points.Rotation
+    geometry_nodes_002.links.new(combine_xyz.outputs[0], instance_on_points.inputs[5])
+    #object_info_001.Geometry -> instance_on_points_001.Instance
+    geometry_nodes_002.links.new(object_info_001.outputs[4], instance_on_points_001.inputs[2])
+    #distribute_points_on_faces_001.Points -> instance_on_points_001.Points
+    geometry_nodes_002.links.new(distribute_points_on_faces_001.outputs[0], instance_on_points_001.inputs[0])
+    #distribute_points_on_faces_001.Rotation -> instance_on_points_001.Rotation
+    geometry_nodes_002.links.new(distribute_points_on_faces_001.outputs[2], instance_on_points_001.inputs[5])
+    #index.Index -> capture_attribute.Value
+    geometry_nodes_002.links.new(index.outputs[0], capture_attribute.inputs[1])
+    #capture_attribute.Geometry -> realize_instances_001.Geometry
+    geometry_nodes_002.links.new(capture_attribute.outputs[0], realize_instances_001.inputs[0])
+    #capture_attribute.Value -> random_value_001.ID
+    geometry_nodes_002.links.new(capture_attribute.outputs[1], random_value_001.inputs[7])
+    #random_value_001.Value -> set_material_index.Material Index
+    geometry_nodes_002.links.new(random_value_001.outputs[2], set_material_index.inputs[2])
+    #set_material_001.Geometry -> join_geometry.Geometry
+    geometry_nodes_002.links.new(set_material_001.outputs[0], join_geometry.inputs[0])
+    #grid.Mesh -> distribute_points_on_faces.Mesh
+    geometry_nodes_002.links.new(grid.outputs[0], distribute_points_on_faces.inputs[0])
+    #join_geometry.Geometry -> group_output.Geometry
+    geometry_nodes_002.links.new(join_geometry.outputs[0], group_output.inputs[0])
+    #distribute_points_on_faces.Points -> instance_on_points.Points
+    geometry_nodes_002.links.new(distribute_points_on_faces.outputs[0], instance_on_points.inputs[0])
+    #instance_on_points_001.Instances -> capture_attribute.Geometry
+    geometry_nodes_002.links.new(instance_on_points_001.outputs[0], capture_attribute.inputs[0])
+    #realize_instances.Geometry -> distribute_points_on_faces_001.Mesh
+    geometry_nodes_002.links.new(realize_instances.outputs[0], distribute_points_on_faces_001.inputs[0])
+    #instance_on_points.Instances -> realize_instances.Geometry
+    geometry_nodes_002.links.new(instance_on_points.outputs[0], realize_instances.inputs[0])
+    #group_input_001.Distance Min -> distribute_points_on_faces_001.Distance Min
+    geometry_nodes_002.links.new(group_input_001.outputs[1], distribute_points_on_faces_001.inputs[2])
+    #group_input_001.Seed -> distribute_points_on_faces_001.Seed
+    geometry_nodes_002.links.new(group_input_001.outputs[3], distribute_points_on_faces_001.inputs[6])
+    #group_input_001.Seed -> random_value_005.Seed
+    geometry_nodes_002.links.new(group_input_001.outputs[3], random_value_005.inputs[8])
+    #random_value_005.Value -> instance_on_points_001.Selection
+    geometry_nodes_002.links.new(random_value_005.outputs[3], instance_on_points_001.inputs[1])
+    #random_value_006.Value -> instance_on_points_001.Instance Index
+    geometry_nodes_002.links.new(random_value_006.outputs[1], instance_on_points_001.inputs[4])
+    #group_input_001.Scale Min -> random_value_007.Min
+    geometry_nodes_002.links.new(group_input_001.outputs[5], random_value_007.inputs[0])
+    #group_input_001.Scale Max -> random_value_007.Max
+    geometry_nodes_002.links.new(group_input_001.outputs[6], random_value_007.inputs[1])
+    #random_value_007.Value -> instance_on_points_001.Scale
+    geometry_nodes_002.links.new(random_value_007.outputs[0], instance_on_points_001.inputs[6])
+    #realize_instances_001.Geometry -> set_material_index.Geometry
+    geometry_nodes_002.links.new(realize_instances_001.outputs[0], set_material_index.inputs[0])
+    #set_material_index.Geometry -> set_material_002.Geometry
+    geometry_nodes_002.links.new(set_material_index.outputs[0], set_material_002.inputs[0])
+    #realize_instances.Geometry -> set_material_001.Geometry
+    geometry_nodes_002.links.new(realize_instances.outputs[0], set_material_001.inputs[0])
+    #object_info.Geometry -> transform_geometry_001.Geometry
+    geometry_nodes_002.links.new(object_info.outputs[4], transform_geometry_001.inputs[0])
+    #group_input_001.Size -> grid.Size Y
+    geometry_nodes_002.links.new(group_input_001.outputs[0], grid.inputs[1])
+    #group_input_001.Size -> grid.Size X
+    geometry_nodes_002.links.new(group_input_001.outputs[0], grid.inputs[0])
+    #group_input_001.Density Max -> distribute_points_on_faces_001.Density Max
+    geometry_nodes_002.links.new(group_input_001.outputs[2], distribute_points_on_faces_001.inputs[3])
+    #math_001.Value -> random_value_005.Probability
+    geometry_nodes_002.links.new(math_001.outputs[0], random_value_005.inputs[6])
+    #set_material_002.Geometry -> join_geometry.Geometry
+    geometry_nodes_002.links.new(set_material_002.outputs[0], join_geometry.inputs[0])
+    
+    
+    return geometry_nodes_002
+
+def get_enabled_spawnables(props):
+    return {
+        name: fn for name, fn in SPAWNABLE_OBJECTS.items() if (
+            (name == "Tree" and props.enable_tree) or
+            (name == "Rock" and props.enable_rock) or
+            (name == "Spire" and props.enable_spire) or
+            (name == "Dish" and props.enable_dish) or
+            (name == "Antenna" and props.enable_antenna)
+        )
+    }
+    
+def get_enabled_colors(props):
+    return {
+        "Red": props.enable_red,
+        "Green": props.enable_green,
+        "Blue": props.enable_blue,
+        "Yellow": props.enable_yellow,
+        "Cyan": props.enable_cyan,
+        "Magenta": props.enable_magenta,
+        "Orange": props.enable_orange,
+        "White": props.enable_white,
+        "Purple": props.enable_purple,
+        "Black": props.enable_black,
+    }
+    
+def cleanup_flag_materials():
+    for name in list(bpy.data.materials.keys()):
+        if name.startswith("FlagColor_"):
+            try:
+                bpy.data.materials.remove(bpy.data.materials[name], do_unlink=True)
+            except:
+                pass
+
+def create_planet_system():
+    # Clear existing objects
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete()
+    
+    # Create the planet
+    planet = create_planet()
+    
+    # Create the placement plane
+    plane = create_placement_plane(planet)
+    
+    # Create a random object that will be instanced
+    random_obj_name = random.choice(list(SPAWNABLE_OBJECTS.keys()))
+    random_obj = SPAWNABLE_OBJECTS[random_obj_name]()
+
+    # Hide the original planet and object from viewport and render
+    planet.hide_viewport = True
+    planet.hide_render = True
+    random_obj.hide_viewport = True
+    random_obj.hide_render = True
+
+    # Ensure the placement plane is still visible
+    plane.hide_viewport = False
+    plane.hide_render = False
+    
+    # Select the placement plane for viewing
+    bpy.context.view_layer.objects.active = plane
+    plane.select_set(True)
+    
+    print(f"Planet system created successfully with {random_obj_name}!")
+    
+def compute_habitable_zone(luminosity):
+    AU_METERS = 149600000000  # real meters
+    AU_UNREAL = AU_METERS * 0.01  # scaled to Blender scene (1:100)
+    # Returns HZ (inner, outer) in unreal-scaled meters from center
+    hz_inner_au = math.sqrt(luminosity / 1.1)
+    hz_outer_au = math.sqrt(luminosity / 0.53)
+    return hz_inner_au * AU_UNREAL, hz_outer_au * AU_UNREAL
+
+
+def generate_planet_orbit_positions(star_location, num_planets, min_distance=200, spacing=100):
+    positions = []
+    for i in range(num_planets):
+        radius = min_distance + i * spacing
+        angle_deg = random.randint(0, 359)
+        angle_rad = math.radians(angle_deg)
+        x = star_location[0] + radius * math.cos(angle_rad)
+        y = star_location[1] + radius * math.sin(angle_rad)
+        z = 0
+        positions.append((x, y, z))
+    return positions
+
+def get_orbit_material(name, color, strength):
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
+
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    nodes.clear()
+
+    output = nodes.new("ShaderNodeOutputMaterial")
+    mix_shader = nodes.new("ShaderNodeMixShader")
+    emission = nodes.new("ShaderNodeEmission")
+    transparent = nodes.new("ShaderNodeBsdfTransparent")
+
+    emission.inputs["Color"].default_value = color
+    emission.inputs["Strength"].default_value = strength
+    mix_shader.inputs["Fac"].default_value = 0.5
+
+    links.new(transparent.outputs[0], mix_shader.inputs[1])
+    links.new(emission.outputs[0], mix_shader.inputs[2])
+    links.new(mix_shader.outputs[0], output.inputs[0])
+
+    mat.blend_method = 'BLEND'
+    mat.use_backface_culling = False
+    mat.show_transparent_back = False
+    return mat
+
+
+def get_star_color(star_class):
+    return {
+        'O': (0.4, 0.6, 1.0, 1.0),    # Blue
+        'B': (0.6, 0.75, 1.0, 1.0),   # Blue-white
+        'A': (0.8, 0.85, 1.0, 1.0),   # White
+        'F': (1.0, 1.0, 0.9, 1.0),    # Yellow-white
+        'G': (1.0, 0.9, 0.6, 1.0),    # Yellow
+        'K': (1.0, 0.6, 0.3, 1.0),    # Orange
+        'M': (1.0, 0.2, 0.2, 1.0),    # Red
+        'WR': (1.0, 0.2, 0.6, 1.0),   # Magenta / pink
+        'D': (0.9, 0.9, 1.0, 1.0),    # White dwarf
+        'Giant': (1.0, 0.8, 0.3, 1.0),# Variable (orange-yellow)
+        'Supergiant': (1.0, 0.5, 0.5, 1.0), # Variable (red-orange)
+        'NS': (1.0, 1.0, 1.0, 1.0)  # Bright white
+    }.get(star_class, (1.0, 1.0, 1.0, 1.0))  # Fallback white
+
+
+def select_star_class():
+    classes = ['M', 'K', 'G', 'F', 'A', 'B', 'O', 'WR', 'D', 'Giant', 'Supergiant']
+    weights = [80, 8, 3.5, 2, 0.7, 0.1, 0.00001, 0.000001, 5, 0.4, 0.0001]
+    total = sum(weights)
+    probabilities = [w / total for w in weights]
+    return random.choices(classes, probabilities)[0]
+
+def remove_old_beams(star_name):
+    for obj in bpy.data.objects:
+        if obj.name.startswith(f"{star_name}_Beam_"):
+            try:
+                bpy.data.objects.remove(obj, do_unlink=True)
+            except:
+                pass
+
+def create_beam_material():
+    mat = bpy.data.materials.new(name="NeutronBeam_MAT")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+
+    # Clear existing nodes
+    for node in nodes:
+        nodes.remove(node)
+
+    output = nodes.new(type='ShaderNodeOutputMaterial')
+    emission = nodes.new(type='ShaderNodeEmission')
+    transparent = nodes.new(type='ShaderNodeBsdfTransparent')
+    mix_shader = nodes.new(type='ShaderNodeMixShader')
+
+    emission.location = (-300, 100)
+    transparent.location = (-300, -100)
+    mix_shader.location = (-100, 0)
+    output.location = (200, 0)
+
+    emission.inputs['Color'].default_value = (0.6, 0.9, 1.0, 1)
+    emission.inputs['Strength'].default_value = 50.0  
+
+    mix_shader.inputs['Fac'].default_value = 0.9  # 90% transparent
+
+    links.new(emission.outputs[0], mix_shader.inputs[2])
+    links.new(transparent.outputs[0], mix_shader.inputs[1])
+    links.new(mix_shader.outputs[0], output.inputs['Surface'])
+
+    mat.blend_method = 'BLEND'
+
+    return mat
+
+def add_neutron_star_beams(star_obj, star_radius, apply_unreal_size=False):
+    mat = create_beam_material()
+
+    depth = 100 * star_radius
+    radius1 = 0.1 * star_radius
+    offset = 50 * star_radius + 0.5 * star_radius
+
+    for direction in [1, -1]:
+        bpy.ops.mesh.primitive_cone_add(
+            vertices=12,
+            radius1=radius1,
+            radius2=0.0,
+            depth=depth,
+            location=star_obj.location,
+        )
+        beam = bpy.context.active_object
+        beam.name = f"{star_obj.name}_Beam_{'Top' if direction == 1 else 'Bottom'}"
+        beam.rotation_euler[0] = 0 if direction == 1 else 3.14159
+        beam.location.z += direction * offset
+
+        if beam.data.materials:
+            beam.data.materials[0] = mat
+        else:
+            beam.data.materials.append(mat)
+
+        beam.parent = star_obj
+
+
+def add_star(star_class=None):
+    props = bpy.context.scene.planet_generator_props
+
+    if star_class is None or star_class == 'RANDOM':
+        star_class = select_star_class()
+        props.star_class = star_class
+
+    props_data = star_properties[star_class]
+    color = get_star_color(star_class)
+
+    # Randomize size and luminosity within real-world range
+    radius = random.uniform(*props_data['radius_range'])
+    luminosity = random.uniform(*props_data['luminosity_range'])
+
+    if props.unreal_size_scale or props.visualize_habitable_scale:
+        radius *= 0.01
+
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=(0, 0, 0))
+
+    star = bpy.context.active_object
+    star.name = f"Star_{star_class}"
+
+    mat = bpy.data.materials.new(name=f"StarMaterial_{star_class}")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    nodes.clear()
+
+    emission = nodes.new(type='ShaderNodeEmission')
+    emission.inputs['Color'].default_value = color
+
+    # Compute brightness based on user toggles
+    if props.no_brightness:
+        strength = 5.0
+    elif props.enable_unrealism:
+        strength = min(100 + math.log10(luminosity + 1) * 250, 2000)
+    else:
+        strength = luminosity * 1000
+
+    emission.inputs['Strength'].default_value = strength
+
+    output = nodes.new(type='ShaderNodeOutputMaterial')
+    links.new(emission.outputs['Emission'], output.inputs['Surface'])
+
+    star.data.materials.append(mat)
+
+    if star_class == 'NS':
+        add_neutron_star_beams(star, radius, apply_unreal_size=props.unreal_size_scale)
+
+    print(f"Generated {star_class}-class star (unrealism: {props.enable_unrealism}, no brightness: {props.no_brightness})")
+
+
+
+def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
+    props = bpy.context.scene.planet_generator_props
+    max_tilt = 90.0
+    tilt_angle = random.uniform(0, max_tilt)
+
+    # Exponential falloff
+    k = math.log(2) / 30
+    chance = math.exp(-k * tilt_angle)
+
+    do_tilt = random.random() < chance
+    if do_tilt and random.random() < 0.5:
+        tilt_angle = -tilt_angle
+
+    actual_tilt = tilt_angle if do_tilt else 0.0
+
+    if create_mesh:
+        bpy.ops.curve.primitive_bezier_circle_add(radius=radius, location=(0, 0, 0))
+        ring = bpy.context.active_object
+        ring.name = name
+
+        if do_tilt:
+            ring.rotation_euler[1] = math.radians(tilt_angle)
+            print(f"Tilted {name} by {tilt_angle:.2f}° (chance: {chance:.2f})")
+        else:
+            print(f"{name} not tilted (angle would have been {tilt_angle:.2f}°)")
+
+        ring.data.fill_mode = 'FULL'
+        ring.data.bevel_depth = props.orbit_ring_bevel_depth
+        ring.data.bevel_resolution = 3
+        ring.data.resolution_u = 32
+
+        props = bpy.context.scene.planet_generator_props
+        use_default = props.use_default_orbit_color
+        hue = props.orbit_ring_hue
+        luminosity = props.orbit_ring_luminosity
+
+        if props.show_habitable_zone:
+            star = bpy.data.objects.get("Star_" + props.star_class)
+            if star:
+                star_radius = star.dimensions[0] / 2 
+                mat = star.active_material
+                emission_strength = 100.0
+
+                if mat and mat.node_tree:
+                    for node in mat.node_tree.nodes:
+                        if node.type == 'EMISSION':
+                            emission_strength = node.inputs['Strength'].default_value
+                            break
+
+                # Inverse your unreal brightness approximation
+                luminosity_est = 10 ** ((emission_strength - 100) / 250) if emission_strength > 100 else 0.01
+                hz_inner, hz_outer = compute_habitable_zone(luminosity_est)
+                if props.visualize_habitable_scale:
+                    hz_inner *= 0.00001
+                    hz_outer *= 0.00001
+                elif props.unreal_size_scale:
+                    hz_inner *= 0.01
+                    hz_outer *= 0.01
+                dist = radius - star_radius
+
+                if dist < hz_inner:
+                    t = max(0.0, 1 - (hz_inner - dist) / (hz_inner * 0.5))
+                    color = (1.0, t, 0.0, 1.0)  # Red → Yellow
+                elif dist > hz_outer:
+                    t = max(0.0, 1 - (dist - hz_outer) / (hz_outer * 0.5))
+                    color = (0.0, t, 1.0, 1.0)  # Blue → Teal
+                else:
+                    color = (0.0, 1.0, 0.0, 1.0)  # Inside = Green
+                
+                print(f"[{name}] OrbitDist={dist:.1f}m | HZ=({hz_inner:.1f}m–{hz_outer:.1f}m) → Color={color}")
+
+            else:
+                color = (1.0, 1.0, 1.0, 1.0)
+        else:
+            color = (0.8, 0.9, 1.0, 1.0) if use_default else colorsys.hsv_to_rgb(hue, 1.0, 1.0) + (1.0,)
+
+        mat = get_orbit_material(f"{name}_Material", color, luminosity)
+        ring.data.materials.append(mat)
+
+    return actual_tilt
+
+def add_orbiting_planet(location, radius, planet_index):
+    bpy.context.scene.cursor.location = location
+    planet = create_planet()
+    props = bpy.context.scene.planet_generator_props
+    planet.name = f"{current_star_name}-{planet_index + 1}"
+
+    # --- Spawn moons as nearby objects using original radius ---
+    original_radius = radius
+    moon_chance = min(max((original_radius - 0.5) / (35 - 2.0), 0.0), 1.0)
+    if random.random() < moon_chance:
+        num_moons = random.randint(1, 5)
+        for i in range(num_moons):
+            angle = random.uniform(0, 2 * math.pi)
+            visual_radius = radius * 0.01 if (props.unreal_size_scale or props.visualize_habitable_scale) else radius
+            moon_distance = visual_radius + 40.0 + random.uniform(0, 70.0)
+
+            offset = mathutils.Vector((math.cos(angle) * moon_distance, math.sin(angle) * moon_distance, 0))
+            location_vector = mathutils.Vector(location)
+            moon_location = location_vector + offset
+
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=moon_location)
+            moon = bpy.context.active_object
+            moon.name = f"{planet.name}-{i + 1}"
+            scale_factor = random.uniform(0.3, 2.0)
+            moon.scale = (scale_factor, scale_factor, scale_factor)
+            
+            # Create and assign random Principled BSDF material to moon
+            moon_mat = bpy.data.materials.new(name=f"MoonMaterial_{moon.name}")
+            moon_mat.use_nodes = True
+            nodes = moon_mat.node_tree.nodes
+            links = moon_mat.node_tree.links
+            nodes.clear()
+
+            # Create Principled BSDF with random color
+            bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+            bsdf.inputs['Base Color'].default_value = (
+                random.random(), random.random(), random.random(), 1.0
+            )
+            bsdf.inputs['Roughness'].default_value = 1.0
+
+            output = nodes.new(type='ShaderNodeOutputMaterial')
+            links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+
+            moon.data.materials.clear()
+            moon.data.materials.append(moon_mat)
+
+    if props.unreal_size_scale or props.visualize_habitable_scale:
+        radius *= 0.01
+
+    planet.scale = (radius, radius, radius)
+    planet.location = location
+    planet.name = f"{current_star_name}-{planet_index + 1}"
+    if props.show_planet_labels:
+        label_object(planet, planet.name)
+    plane = create_placement_plane(planet)
+    plane.location = location
+    plane.name = f"{planet.name}_PlacementPlane"
+    
+    enabled_spawnables = get_enabled_spawnables(props)
+    if not enabled_spawnables:
+        print(" No enabled spawnables! Skipping object spawn.")
+        return
+
+    random_obj_name = random.choice(list(enabled_spawnables.keys()))
+    random_obj = enabled_spawnables[random_obj_name]()
+
+    color_materials = create_color_materials()
+    if not color_materials:
+        print("No color materials generated. Skipping flag material assignment.")
+        return
+
+    selected_color = random.choice(list(color_materials.keys()))
+    selected_mat = color_materials[selected_color]
+    
+    if random_obj:
+        for modifier in plane.modifiers:
+            if modifier.name == "PlanetObjectPlacer":
+                for node in modifier.node_group.nodes:
+                    if node.name == "Object Info.001":
+                        node.inputs[0].default_value = random_obj
+                    elif node.name == "Set Material.002":
+                        node.inputs[2].default_value = selected_mat
+        print(f"Applied object: {random_obj.name}, material: {selected_mat.name}")
+        
+    print(f"Planet Index {planet_index} — Original radius: {original_radius:.2f}")
+
+    if original_radius < 20:
+        mat = create_wave_mixed_material()
+        print("Assigned wave-mixed shader to small planet (radius < 20).")
+    else:
+        mat = create_custom_planet_material()
+        print("Assigned custom shader to large planet (radius >= 20).")
+
+    for modifier in plane.modifiers:
+        if modifier.name == "PlanetObjectPlacer":
+            for node in modifier.node_group.nodes:
+                if node.name == "Set Material.001":
+                    node.inputs[2].default_value = mat
+                    print(f"Planet material '{mat.name}' assigned to Set Material.001 input.")
+
+    planet.hide_viewport = True
+    planet.hide_render = True
+    random_obj.hide_viewport = True
+    random_obj.hide_render = True
+    
+def create_orbiting_planets(n):
+    scene_props = bpy.context.scene.planet_generator_props
+    min_radius = scene_props.min_orbit_radius
+    max_radius = scene_props.max_orbit_radius
+    min_spacing = scene_props.min_orbit_spacing
+
+    used_radii = []
+
+    #Collect valid orbit distances
+    while len(used_radii) < n:
+        radius = random.uniform(min_radius, max_radius)
+        if all(abs(radius - r) >= min_spacing for r in used_radii):
+            used_radii.append(radius)
+
+    #Sort by distance from the star
+    used_radii.sort()
+
+    for index, orbit_radius in enumerate(used_radii):
+        planet_radius = random.uniform(5.0, 80.0)
+        tilt_angle = create_orbit_ring(orbit_radius, name=f"OrbitRing_{index}", create_mesh=scene_props.show_orbit_rings)
+        angle = random.uniform(0, 2 * math.pi)
+
+        x = math.cos(angle) * orbit_radius
+        y = math.sin(angle) * orbit_radius
+        z = 0
+
+        rotated = mathutils.Matrix.Rotation(math.radians(tilt_angle), 4, 'Y') @ mathutils.Vector((x, y, z))
+        add_orbiting_planet(rotated, planet_radius, index)
+
+def create_full_planet_system(num_orbiting_planets=5):
+    global current_star_name
+    clean_scene()
+    cleanup_flag_materials()
+    
+    current_star_name = random.choice(star_names)
+    print(f"Selected star system: {current_star_name}")
+    
+    # Create a random object as the template
+    props = bpy.context.scene.planet_generator_props
+    enabled_spawnables = get_enabled_spawnables(props)
+    if not enabled_spawnables:
+        print("No enabled spawnables! Skipping object spawn.")
+        return
+
+    random_obj_name = random.choice(list(enabled_spawnables.keys()))
+    random_obj = enabled_spawnables[random_obj_name]()
+
+    random_obj.hide_viewport = True
+    random_obj.hide_render = True
+
+    add_star(props.star_class)  # Place star first
+
+    create_orbiting_planets(num_orbiting_planets)  # Then create planets that orbit it
+
+    print(f"Full system generated with Star and orbiting planets using {random_obj_name}.")
+
+class PlanetGeneratorProperties(bpy.types.PropertyGroup):
+    planet_count: bpy.props.IntProperty(
+        name="Planet Count",
+        default=5,
+        min=1,
+        max=100
+    )
+    cube_density_min: bpy.props.FloatProperty(
+        name="Cube Density Min (%)",
+        description="Minimum percentage of cube coverage on a planet",
+        default=60.0,
+        min=0.0,
+        max=100.0
+    )
+    cube_density_max: bpy.props.FloatProperty(
+        name="Cube Density Max (%)",
+        description="Maximum percentage of cube coverage on a planet",
+        default=100.0,
+        min=0.0,
+        max=100.0
+    )
+    show_orbit_rings: bpy.props.BoolProperty(
+        name="Show Orbit Rings",
+        description="Toggle visibility of orbit ring meshes",
+        default=True
+    )
+    min_orbit_spacing: bpy.props.FloatProperty(
+        name="Min Orbit Spacing (m)",
+        description="Minimum spacing between orbit rings",
+        default=40.0,
+        min=1.0,
+        max=1000.0
+    )
+    min_orbit_radius: bpy.props.FloatProperty(
+        name="Min Orbit Radius (m)",
+        description="Minimum orbit ring distance from the star",
+        default=100.0,
+        min=0.0
+    )
+    max_orbit_radius: bpy.props.FloatProperty(
+        name="Max Orbit Radius (m)",
+        description="Maximum orbit ring distance from the star",
+        default=5000.0,
+        min=0.0
+    )
+    star_class: bpy.props.EnumProperty(
+    name="Star Class",
+    description="Select the spectral class of the star",
+    items=[
+        ('RANDOM', 'Random', 'Randomly select a star class based on real-world distribution'),
+        ('O', 'O (Blue)', 'Massive, hot, and rare'),
+        ('B', 'B (Blue-White)', 'Very luminous and hot'),
+        ('A', 'A (White)', 'Bright white star'),
+        ('F', 'F (Yellow-White)', 'Warm yellow-white star'),
+        ('G', 'G (Yellow)', 'Sun-like star'),
+        ('K', 'K (Orange)', 'Cooler orange star'),
+        ('M', 'M (Red)', 'Small, cool, and most common'),
+        ('D', 'D (White Dwarf)', 'Extremely hot and dense remnant'),
+        ('Giant', 'G (Giant)', 'Large, luminous evolved star'),
+        ('Supergiant', 'S (Supergiant)', 'Enormous and rare star'),
+        ('WR', 'WR (Wolf–Rayet)', 'Evolved massive star with strong winds'),
+        ('NS', 'Neutron Star', 'Smallest, densest star with polar jets')
+    ],
+    default='RANDOM'
+    )
+    enable_unrealism: bpy.props.BoolProperty(
+        name="Unrealism Mode",
+        description="Tone down luminosity to better visualize star colors",
+        default=False
+    )
+    no_brightness: bpy.props.BoolProperty(
+        name="No Brightness",
+        description="Set all stars to fixed low brightness (5.0) for easier color visibility",
+        default=False
+    )
+    use_default_orbit_color: bpy.props.BoolProperty(
+        name="Use Default Orbit Ring Color",
+        description="Use the default blue-white orbit ring color instead of hue-based",
+        default=True
+    )
+
+    orbit_ring_hue: bpy.props.FloatProperty(
+        name="Orbit Ring Hue",
+        description="Hue value (0.0 and 1.0 - red, 0.33 - green, 0.66 - blue) for orbit ring color",
+        default=0.55,
+        min=0.0,
+        max=1.0,
+        subtype='FACTOR'
+    )
+    orbit_ring_luminosity: bpy.props.FloatProperty(
+        name="Orbit Ring Luminosity",
+        description="Controls how bright the orbit ring glow is",
+        default=3.0,
+        min=0.1,
+        max=50.0,
+        subtype='FACTOR'
+    )
+    unreal_size_scale: bpy.props.BoolProperty(
+        name="Unrealistic Star Size (1:10K)",
+        description="Scale star radius to 1:10000 instead of 1:100 (for stylized scenes)",
+        default=True
+    )
+    show_habitable_zone: bpy.props.BoolProperty(
+        name="Visualize Habitable Zone",
+        description="Orbit rings will be colored based on habitability (green=survivable, red=too hot, blue=too cold)",
+        default=False
+    )
+    visualize_habitable_scale: bpy.props.BoolProperty(
+        name="Visualize Habitability (1:10M)",
+        description="Enable extreme scale-down to better visualize habitability distances (Object size remains at 1:10 000)",
+        default=False
+    )
+    orbit_ring_bevel_depth: bpy.props.FloatProperty(
+        name="Orbit Ring Bevel Depth",
+        description="Controls the visual thickness of orbit rings(Suggest only going above 1.0 if you using high distance orbits)",
+        default=0.2,
+        min=0.0,
+        max=100.0,
+        subtype='FACTOR'
+    )
+    enable_tree: bpy.props.BoolProperty(name="Enable Tree", default=True)
+    enable_rock: bpy.props.BoolProperty(name="Enable Rock", default=True)
+    enable_spire: bpy.props.BoolProperty(name="Enable Spire", default=True)
+    enable_dish: bpy.props.BoolProperty(name="Enable Dish", default=True)
+    enable_antenna: bpy.props.BoolProperty(name="Enable Antenna", default=True)
+    
+    show_planet_labels: bpy.props.BoolProperty(
+    name="Show Planet Labels",
+    description="Display labels above each planet for easier identification",
+    default=False
+    )
+    planet_label_scale: bpy.props.FloatProperty(
+        name="Label Size",
+        description="Controls how large the planet labels are",
+        default=10.0,
+        min=1.0,
+        max=10000.0,
+        subtype='FACTOR'
+    )
+    planet_label_luminosity: bpy.props.FloatProperty(
+        name="Label Luminosity",
+        description="How bright the label glows in Cycles/Eevee",
+        default=25.0,
+        min=1.0,
+        max=100.0,
+        subtype='FACTOR'
+    )
+    enable_red: bpy.props.BoolProperty(name="Red", default=True)
+    enable_green: bpy.props.BoolProperty(name="Green", default=True)
+    enable_blue: bpy.props.BoolProperty(name="Blue", default=True)
+    enable_yellow: bpy.props.BoolProperty(name="Yellow", default=True)
+    enable_cyan: bpy.props.BoolProperty(name="Cyan", default=True)
+    enable_magenta: bpy.props.BoolProperty(name="Magenta", default=True)
+    enable_orange: bpy.props.BoolProperty(name="Orange", default=True)
+    enable_white: bpy.props.BoolProperty(name="White", default=True)
+    enable_purple: bpy.props.BoolProperty(name="Purple", default=True)
+    enable_black: bpy.props.BoolProperty(name="Black", default=True)
+
+class RandomizePlanetSettingsOperator(bpy.types.Operator):
+    bl_idname = "object.randomize_planet_settings"
+    bl_label = "Randomize Planet Settings"
+    bl_description = "Randomly fills out all generation settings"
+
+    def execute(self, context):
+        props = context.scene.planet_generator_props
+
+        # Randomize planet count
+        props.planet_count = random.randint(3, 25)
+
+        # Randomize density (ensure min <= max)
+        props.cube_density_min = random.uniform(0, 60)
+        props.cube_density_max = random.uniform(props.cube_density_min, 100)
+
+        # Estimate star radius for setting safe orbit distances
+        temp_class = select_star_class()
+        star_data = star_properties.get(temp_class)
+        safe_margin = 100.0  # To ensure orbit starts outside of star
+
+        if star_data:
+            est_radius = random.uniform(*star_data["radius_range"])
+            if props.unreal_size_scale or props.visualize_habitable_scale:
+                est_radius *= 0.01
+            props.min_orbit_radius = est_radius + safe_margin
+        else:
+            props.min_orbit_radius = 100.0
+
+        props.max_orbit_radius = props.min_orbit_radius + random.uniform(500, 5000)
+        props.min_orbit_spacing = random.uniform(30.0, 200.0)
+
+        # Set star class to RANDOM
+        props.star_class = 'RANDOM'
+
+        # Randomly enable at least 1 spawnable object
+        object_props = [
+            "enable_tree",
+            "enable_rock",
+            "enable_spire",
+            "enable_dish",
+            "enable_antenna"
+        ]
+        enabled_objects = random.sample(object_props, random.randint(1, len(object_props)))
+        for prop in object_props:
+            setattr(props, prop, prop in enabled_objects)
+
+        # Randomly enable at least 1 flag color
+        color_props = [
+            "enable_red", "enable_green", "enable_blue",
+            "enable_yellow", "enable_cyan", "enable_magenta",
+            "enable_orange", "enable_white", "enable_purple", "enable_black"
+        ]
+        enabled_colors = random.sample(color_props, random.randint(1, len(color_props)))
+        for prop in color_props:
+            setattr(props, prop, prop in enabled_colors)
+
+        self.report({'INFO'}, "Planet generator settings randomized.")
+        return {'FINISHED'}
+
+class GeneratePlanetSystemOperator(bpy.types.Operator):
+    bl_idname = "object.generate_planet_system"
+    bl_label = "Generate Planet System"
+    bl_description = "Delete old system and generate a new planet system"
+
+    def execute(self, context):
+        props = context.scene.planet_generator_props
+        create_full_planet_system(num_orbiting_planets=props.planet_count)
+        return {'FINISHED'}
+
+class PlanetGeneratorPanel(bpy.types.Panel):
+    bl_label = "Planet Generator"
+    bl_idname = "VIEW3D_PT_planet_generator"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Planet Tools'
+
+    def draw(self, context):
+        layout = self.layout
+        props = context.scene.planet_generator_props
+        layout.operator("object.randomize_planet_settings", text="🎲 Randomize Planet Settings")
+
+        layout.prop(props, "planet_count")
+        layout.operator("object.generate_planet_system", text="Generate Planet System")
+        layout.prop(props, "cube_density_min")
+        layout.prop(props, "cube_density_max")
+        layout.prop(props, "show_orbit_rings")
+        layout.prop(props, "planet_spacing_min")
+        layout.prop(props, "min_orbit_spacing")
+        layout.prop(props, "min_orbit_radius")
+        layout.prop(props, "max_orbit_radius")
+        layout.prop(props, "star_class")
+        layout.label(text="Brightness Modes:")
+        
+        row = layout.row()
+        row.enabled = not props.no_brightness
+        row.prop(props, "enable_unrealism")
+
+        row = layout.row()
+        row.enabled = not props.enable_unrealism
+        row.prop(props, "no_brightness")
+        
+        layout.label(text="Orbit Ring Appearance:")
+        layout.prop(props, "use_default_orbit_color")
+
+        row = layout.row()
+        row.enabled = not props.use_default_orbit_color
+        row.prop(props, "orbit_ring_hue")
+        layout.prop(props, "orbit_ring_luminosity")
+        layout.prop(props, "orbit_ring_bevel_depth")
+        
+        row = layout.row()
+        row.enabled = not props.visualize_habitable_scale
+        row.prop(props, "unreal_size_scale")
+        row = layout.row()
+        row.enabled = not props.unreal_size_scale
+        row.prop(props, "visualize_habitable_scale")
+
+        layout.prop(props, "show_habitable_zone")
+        
+        enabled_items = [
+            props.enable_tree,
+            props.enable_rock,
+            props.enable_spire,
+            props.enable_dish,
+            props.enable_antenna,
+        ]
+        enabled_count = sum(enabled_items)
+
+        layout.label(text="Enable Spawnable Objects:")
+        layout.label(text="At least one must remain enabled", icon='INFO')
+
+        # Dynamically disable the last remaining enabled checkbox
+        row = layout.row()
+        row.enabled = not (enabled_count == 1 and props.enable_tree)
+        row.prop(props, "enable_tree")
+
+        row = layout.row()
+        row.enabled = not (enabled_count == 1 and props.enable_rock)
+        row.prop(props, "enable_rock")
+
+        row = layout.row()
+        row.enabled = not (enabled_count == 1 and props.enable_spire)
+        row.prop(props, "enable_spire")
+
+        row = layout.row()
+        row.enabled = not (enabled_count == 1 and props.enable_dish)
+        row.prop(props, "enable_dish")
+
+        row = layout.row()
+        row.enabled = not (enabled_count == 1 and props.enable_antenna)
+        row.prop(props, "enable_antenna")
+        
+        layout.prop(props, "show_planet_labels")
+        if props.show_planet_labels:
+            layout.prop(props, "planet_label_scale")
+            layout.prop(props, "planet_label_luminosity")
+            
+        layout.label(text="Enable Flag Colors:")
+        enabled_colors = [
+            ("enable_red", "Red"),
+            ("enable_green", "Green"),
+            ("enable_blue", "Blue"),
+            ("enable_yellow", "Yellow"),
+            ("enable_cyan", "Cyan"),
+            ("enable_magenta", "Magenta"),
+            ("enable_orange", "Orange"),
+            ("enable_white", "White"),
+            ("enable_purple", "Purple"),
+            ("enable_black", "Black"),
+        ]
+
+        for prop_name, label in enabled_colors:
+            layout.prop(props, prop_name, text=label)
+            
+        layout.separator()
+        layout.label(text="Environment Settings:")
+        layout.operator("object.set_background_image", icon="FILE_IMAGE")
+        layout.operator("object.remove_background_image", icon="X")
+
+        
+        layout.separator()
+        layout.label(text="Preset Tools:")
+        row = layout.row(align=True)
+        row.operator("object.save_planet_settings", icon="EXPORT")
+        row.operator("object.load_planet_settings", icon="IMPORT")
+        
+        layout.separator()
+        layout.label(text="Exported to your 'Downloads'", icon='FILE_FOLDER')
+        layout.operator("object.export_planet_system_fbx", icon='EXPORT')
+    
+
+class SetBackgroundImageOperator(bpy.types.Operator):
+    bl_idname = "object.set_background_image"
+    bl_label = "Set Background Image"
+    bl_description = "Set a custom HDRI or background image for the world environment"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: bpy.props.StringProperty(subtype="FILE_PATH")
+    filter_glob: bpy.props.StringProperty(default="*.hdr;*.exr;*.jpg;*.png", options={'HIDDEN'})
+
+    def execute(self, context):
+        try:
+            img = bpy.data.images.load(self.filepath)
+        except:
+            self.report({'ERROR'}, f"Failed to load image: {self.filepath}")
+            return {'CANCELLED'}
+
+        world = bpy.data.worlds.get("World")
+        if not world:
+            world = bpy.data.worlds.new("World")
+            bpy.context.scene.world = world
+
+        world.use_nodes = True
+        nodes = world.node_tree.nodes
+        links = world.node_tree.links
+
+        nodes.clear()
+
+        tex = nodes.new("ShaderNodeTexEnvironment")
+        tex.image = img
+        tex.location = (-300, 0)
+
+        background = nodes.new("ShaderNodeBackground")
+        background.location = (0, 0)
+
+        output = nodes.new("ShaderNodeOutputWorld")
+        output.location = (300, 0)
+
+        links.new(tex.outputs["Color"], background.inputs["Color"])
+        links.new(background.outputs["Background"], output.inputs["Surface"])
+
+        self.report({'INFO'}, f"Background set from: {self.filepath}")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}            
+
+
+class RemoveBackgroundImageOperator(bpy.types.Operator):
+    bl_idname = "object.remove_background_image"
+    bl_label = "Remove Background Image"
+    bl_description = "Remove custom background image and reset to dark environment"
+
+    def execute(self, context):
+        world = bpy.data.worlds.get("World")
+        if not world:
+            self.report({'ERROR'}, "World not found")
+            return {'CANCELLED'}
+
+        world.use_nodes = True
+        nodes = world.node_tree.nodes
+        links = world.node_tree.links
+
+        nodes.clear()
+
+        bg = nodes.new("ShaderNodeBackground")
+        bg.inputs["Color"].default_value = (0.01, 0.01, 0.01, 1.0)  # Almost black
+        bg.location = (0, 0)
+
+        out = nodes.new("ShaderNodeOutputWorld")
+        out.location = (200, 0)
+
+        links.new(bg.outputs["Background"], out.inputs["Surface"])
+
+        self.report({'INFO'}, "Background removed and reset to dark world")
+        return {'FINISHED'}
+
+class SavePlanetSettingsOperator(bpy.types.Operator):
+    bl_idname = "object.save_planet_settings"
+    bl_label = "💾 Save Settings"
+    bl_description = "Save current planet generator settings to a JSON file"
+
+    def execute(self, context):
+        props = context.scene.planet_generator_props
+        annotations = props.__annotations__
+        data = {}
+
+        for prop_name in annotations:
+            try:
+                val = getattr(props, prop_name)
+                if isinstance(val, (int, float, bool, str)):
+                    data[prop_name] = val
+            except Exception as e:
+                print(f"Could not serialize {prop_name}: {e}")
+
+        filepath = bpy.path.abspath("//planet_settings.json")
+        try:
+            with open(filepath, 'w') as f:
+                json.dump(data, f, indent=4)
+            self.report({'INFO'}, f"✅ Settings saved to {filepath}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to save: {e}")
+        return {'FINISHED'}
+
+class LoadPlanetSettingsOperator(bpy.types.Operator):
+    bl_idname = "object.load_planet_settings"
+    bl_label = "📂 Load Settings"
+    bl_description = "Load planet generator settings from a JSON file"
+
+    def execute(self, context):
+        props = context.scene.planet_generator_props
+        filepath = bpy.path.abspath("//planet_settings.json")
+
+        if not os.path.exists(filepath):
+            self.report({'ERROR'}, f"No settings file found at {filepath}")
+            return {'CANCELLED'}
+
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+
+            for key, val in data.items():
+                if hasattr(props, key):
+                    try:
+                        setattr(props, key, val)
+                    except Exception as e:
+                        print(f"⚠️ Failed to set {key}: {e}")
+            self.report({'INFO'}, f"✅ Loaded settings from {filepath}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to load: {e}")
+        return {'FINISHED'}
+
+class ExportPlanetSystemFBXOperator(bpy.types.Operator):
+    bl_idname = "object.export_planet_system_fbx"
+    bl_label = "Export Planet System as .FBX"
+    bl_description = "Export the entire generated planet system to your Downloads folder"
+
+    def execute(self, context):
+        # Get user Downloads path
+        downloads_path = str(Path.home() / "Downloads")
+        export_path = os.path.join(downloads_path, "exported_planet_system.fbx")
+
+        bpy.ops.export_scene.fbx(
+            filepath=export_path,
+            use_selection=False,
+            apply_unit_scale=True,
+            bake_space_transform=True
+        )
+
+        self.report({'INFO'}, f"Exported to {export_path}")
+        return {'FINISHED'}
+
+def register():
+    bpy.utils.register_class(PlanetGeneratorProperties)
+    bpy.utils.register_class(GeneratePlanetSystemOperator)
+    bpy.utils.register_class(SavePlanetSettingsOperator)
+    bpy.utils.register_class(LoadPlanetSettingsOperator)
+    bpy.utils.register_class(ExportPlanetSystemFBXOperator)
+    bpy.utils.register_class(SetBackgroundImageOperator)
+    bpy.utils.register_class(RemoveBackgroundImageOperator)
+    bpy.utils.register_class(PlanetGeneratorPanel)
+    bpy.types.Scene.planet_generator_props = bpy.props.PointerProperty(type=PlanetGeneratorProperties)
+
+def unregister():
+    bpy.utils.unregister_class(PlanetGeneratorProperties)
+    bpy.utils.unregister_class(GeneratePlanetSystemOperator)
+    bpy.utils.unregister_class(SavePlanetSettingsOperator)
+    bpy.utils.unregister_class(LoadPlanetSettingsOperator)
+    bpy.utils.unregister_class(ExportPlanetSystemFBXOperator)
+    bpy.utils.unregister_class(SetBackgroundImageOperator)
+    bpy.utils.unregister_class(RemoveBackgroundImageOperator)
+    bpy.utils.unregister_class(PlanetGeneratorPanel)
+    del bpy.types.Scene.planet_generator_props
+
+def configure_scene():
+    bpy.context.scene.render.engine = 'CYCLES'
+    for area in bpy.context.screen.areas:
+        if area.type == 'VIEW_3D':
+            for space in area.spaces:
+                if space.type == 'VIEW_3D':
+                    space.clip_end = 100000000 
+                    print("Set viewport clip_end to 100000000")
+                    
+def clean_scene():
+    # Step 1: Unlink and remove all objects
+    for obj in list(bpy.data.objects):
+        try:
+            for coll in obj.users_collection:
+                coll.objects.unlink(obj)
+            bpy.data.objects.remove(obj, do_unlink=True)
+        except:
+            pass
+
+    # Step 2: Remove all collections (except master scene collection)
+    for coll in list(bpy.data.collections):
+        if coll.users == 0:
+            bpy.data.collections.remove(coll)
+
+    # Step 3: Remove unused datablocks (including images, materials, meshes, curves, etc.)
+    clean_data_blocks()
+
+    # Step 4: Orphan purge – run multiple times to fully free memory
+    for _ in range(5):
+        try:
+            bpy.ops.outliner.orphans_purge(do_recursive=True)
+        except RuntimeError:
+            break
+
+    print("Scene fully cleaned.")
+
+def clean_data_blocks():
+    data_groups = [
+        bpy.data.meshes,
+        bpy.data.curves,
+        bpy.data.materials,
+        bpy.data.node_groups,
+        bpy.data.images,
+        bpy.data.textures,
+        bpy.data.cameras,
+        bpy.data.lights,
+        bpy.data.grease_pencils,
+        bpy.data.fonts,
+        bpy.data.metaballs,
+        bpy.data.armatures,
+    ]
+    for group in data_groups:
+        for block in list(group):
+            if block.users == 0:
+                try:
+                    group.remove(block)
+                except:
+                    pass
