@@ -2490,6 +2490,7 @@ def register():
     bpy.utils.register_class(ExportPlanetSystemFBXOperator)
     bpy.utils.register_class(SetBackgroundImageOperator)
     bpy.utils.register_class(RemoveBackgroundImageOperator)
+    bpy.utils.register_class(RandomizePlanetSettingsOperator)
     bpy.utils.register_class(PlanetGeneratorPanel)
     bpy.types.Scene.planet_generator_props = bpy.props.PointerProperty(type=PlanetGeneratorProperties)
 
@@ -2501,6 +2502,7 @@ def unregister():
     bpy.utils.unregister_class(ExportPlanetSystemFBXOperator)
     bpy.utils.unregister_class(SetBackgroundImageOperator)
     bpy.utils.unregister_class(RemoveBackgroundImageOperator)
+    bpy.utils.register_class(RandomizePlanetSettingsOperator)
     bpy.utils.unregister_class(PlanetGeneratorPanel)
     del bpy.types.Scene.planet_generator_props
 
