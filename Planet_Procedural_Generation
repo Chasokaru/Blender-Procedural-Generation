@@ -142,6 +142,43 @@ selected_star_name
 
 current_star_name = None
 
+def create_color_materials():
+    props = bpy.context.scene.planet_generator_props
+    enabled_colors = get_enabled_colors(props)
+
+    color_map = {
+        "Red":      (1.0, 0.2, 0.2, 1.0),
+        "Green":    (0.2, 1.0, 0.2, 1.0),
+        "Blue":     (0.2, 0.4, 1.0, 1.0),
+        "Yellow":   (1.0, 1.0, 0.2, 1.0),
+        "Cyan":     (0.2, 1.0, 1.0, 1.0),
+        "Magenta":  (1.0, 0.2, 1.0, 1.0),
+        "Orange":   (1.0, 0.5, 0.2, 1.0),
+        "White":    (1.0, 1.0, 1.0, 1.0),
+        "Purple":   (0.5, 0.2, 1.0, 1.0),
+        "Black":    (0.05, 0.05, 0.05, 1.0)
+    }
+
+    result = {}
+    for name, color in color_map.items():
+        if enabled_colors.get(name, False):
+            mat = bpy.data.materials.new(name=f"FlagColor_{name}")
+            mat.use_nodes = True
+            nodes = mat.node_tree.nodes
+            links = mat.node_tree.links
+            nodes.clear()
+
+            bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+            bsdf.inputs['Base Color'].default_value = color
+            bsdf.inputs['Roughness'].default_value = 1.0
+
+            output = nodes.new(type='ShaderNodeOutputMaterial')
+            links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+
+            result[name] = mat
+    return result
+
+
 def create_planet():
     # Create the planet sphere
     bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=(0, 0, 0))
@@ -1147,12 +1184,8 @@ def geometry_nodes_002_node_group():
     geometry_nodes_002.links.new(realize_instances_001.outputs[0], set_material_index.inputs[0])
     #set_material_index.Geometry -> set_material_002.Geometry
     geometry_nodes_002.links.new(set_material_index.outputs[0], set_material_002.inputs[0])
-    #group_input_001.Flag Color -> set_material_002.Material
-    geometry_nodes_002.links.new(group_input_001.outputs[7], set_material_002.inputs[2])
     #realize_instances.Geometry -> set_material_001.Geometry
     geometry_nodes_002.links.new(realize_instances.outputs[0], set_material_001.inputs[0])
-    #group_input_001.Planet Color -> set_material_001.Material
-    geometry_nodes_002.links.new(group_input_001.outputs[8], set_material_001.inputs[2])
     #object_info.Geometry -> transform_geometry_001.Geometry
     geometry_nodes_002.links.new(object_info.outputs[4], transform_geometry_001.inputs[0])
     #group_input_001.Size -> grid.Size Y
@@ -1179,6 +1212,28 @@ def get_enabled_spawnables(props):
             (name == "Antenna" and props.enable_antenna)
         )
     }
+    
+def get_enabled_colors(props):
+    return {
+        "Red": props.enable_red,
+        "Green": props.enable_green,
+        "Blue": props.enable_blue,
+        "Yellow": props.enable_yellow,
+        "Cyan": props.enable_cyan,
+        "Magenta": props.enable_magenta,
+        "Orange": props.enable_orange,
+        "White": props.enable_white,
+        "Purple": props.enable_purple,
+        "Black": props.enable_black,
+    }
+    
+def cleanup_flag_materials():
+    for name in list(bpy.data.materials.keys()):
+        if name.startswith("FlagColor_"):
+            try:
+                bpy.data.materials.remove(bpy.data.materials[name], do_unlink=True)
+            except:
+                pass
 
 
 def create_planet_system():
@@ -1540,6 +1595,13 @@ def add_orbiting_planet(location, radius, planet_index):
     random_obj_name = random.choice(list(enabled_spawnables.keys()))
     random_obj = enabled_spawnables[random_obj_name]()
 
+    color_materials = create_color_materials()
+    if not color_materials:
+        print("⚠️ No color materials generated. Skipping flag material assignment.")
+        return
+
+    selected_color = random.choice(list(color_materials.keys()))
+    selected_mat = color_materials[selected_color]
     
     if random_obj:
         for modifier in plane.modifiers:
@@ -1547,7 +1609,10 @@ def add_orbiting_planet(location, radius, planet_index):
                 for node in modifier.node_group.nodes:
                     if node.name == "Object Info.001":
                         node.inputs[0].default_value = random_obj
-                modifier["Input_4"] = random_obj
+                    elif node.name == "Set Material.002":
+                        node.inputs[2].default_value = selected_mat
+        print(f"✅ Applied object: {random_obj.name}, material: {selected_mat.name}")
+
     planet.hide_viewport = True
     planet.hide_render = True
     random_obj.hide_viewport = True
@@ -1584,6 +1649,7 @@ def create_orbiting_planets(n):
 def create_full_planet_system(num_orbiting_planets=5):
     global current_star_name
     clean_scene()
+    cleanup_flag_materials()
     
     current_star_name = random.choice(star_names)
     print(f"Selected star system: {current_star_name}")
@@ -1753,6 +1819,19 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
         max=100.0,
         subtype='FACTOR'
     )
+    enable_red: bpy.props.BoolProperty(name="Red", default=True)
+    enable_green: bpy.props.BoolProperty(name="Green", default=True)
+    enable_blue: bpy.props.BoolProperty(name="Blue", default=True)
+    enable_yellow: bpy.props.BoolProperty(name="Yellow", default=True)
+    enable_cyan: bpy.props.BoolProperty(name="Cyan", default=True)
+    enable_magenta: bpy.props.BoolProperty(name="Magenta", default=True)
+    enable_orange: bpy.props.BoolProperty(name="Orange", default=True)
+    enable_white: bpy.props.BoolProperty(name="White", default=True)
+    enable_purple: bpy.props.BoolProperty(name="Purple", default=True)
+    enable_black: bpy.props.BoolProperty(name="Black", default=True)
+
+    
+    
 
 class GeneratePlanetSystemOperator(bpy.types.Operator):
     bl_idname = "object.generate_planet_system"
@@ -1849,6 +1928,25 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         if props.show_planet_labels:
             layout.prop(props, "planet_label_scale")
             layout.prop(props, "planet_label_luminosity")
+            
+        layout.label(text="Enable Flag Colors:")
+        enabled_colors = [
+            ("enable_red", "Red"),
+            ("enable_green", "Green"),
+            ("enable_blue", "Blue"),
+            ("enable_yellow", "Yellow"),
+            ("enable_cyan", "Cyan"),
+            ("enable_magenta", "Magenta"),
+            ("enable_orange", "Orange"),
+            ("enable_white", "White"),
+            ("enable_purple", "Purple"),
+            ("enable_black", "Black"),
+        ]
+
+        for prop_name, label in enabled_colors:
+            layout.prop(props, prop_name, text=label)
+
+        
 
 
 
