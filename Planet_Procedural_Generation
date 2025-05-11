@@ -1,5 +1,6 @@
 import bpy, mathutils, random
-import math, colorsys
+import math, colorsys, json, os
+from pathlib import Path
 
 star_properties = {
     'O':          {'radius_range': (60000.0, 100000.0),     'luminosity_range': (100000.0, 500000.0)},
@@ -178,7 +179,6 @@ def create_color_materials():
             result[name] = mat
     return result
 
-
 def create_planet():
     # Create the planet sphere
     bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=(0, 0, 0))
@@ -188,7 +188,6 @@ def create_planet():
     # Add the first geometry nodes modifier
     modifier = planet.modifiers.new(name="PlanetTerrain", type='NODES')
     modifier.node_group = geometry_nodes_001_node_group()
-    
     
     # Determine moon spawn chance based on scale (0.5 to 35 -> 0% to 50%)
     planet_scale = planet.scale[0]
@@ -240,7 +239,6 @@ def label_object(obj, label_text):
         mat.blend_method = 'BLEND'
         mat.use_backface_culling = False
 
-    # Update emission
     emission_node = mat.node_tree.nodes.get("Emission")
     if emission_node:
         emission_node.inputs["Color"].default_value = (1.0, 1.0, 0.4, 1.0)
@@ -299,10 +297,10 @@ def create_tree(name="Tree", size=1):
     trunk.select_set(True)
     bpy.ops.object.join()
 
-    tree = bpy.context.active_object  # Changed from cube to tree
+    tree = bpy.context.active_object
     tree.name = name
 
-    return tree  # Changed from cube to tree
+    return tree
 
 def create_rock(name="Rock"):
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=(0, 0, 1))
@@ -346,9 +344,8 @@ def create_antenna(name="Antenna"):
 
     final = bpy.context.active_object
     final.name = name
-    return final  # Changed from antenna to final
+    return final 
 
-# ✅ Now that all creation functions are defined, we can create the objects:
 SPAWNABLE_OBJECTS = {
     "Tree": create_tree,
     "Rock": create_rock,
@@ -1332,7 +1329,6 @@ def geometry_nodes_002_node_group():
 
     print(f"[{scene.frame_current}] Assigned {random_density_percent:.1f}% cube density")
 
-
     #node Random Value.005
     random_value_005 = geometry_nodes_002.nodes.new("FunctionNodeRandomValue")
     random_value_005.name = "Random Value.005"
@@ -1516,7 +1512,6 @@ def cleanup_flag_materials():
             except:
                 pass
 
-
 def create_planet_system():
     # Clear existing objects
     bpy.ops.object.select_all(action='SELECT')
@@ -1666,8 +1661,6 @@ def create_beam_material():
 def add_neutron_star_beams(star_obj, star_radius, apply_unreal_size=False):
     mat = create_beam_material()
 
-    # ❗ star_radius is already scaled before this function is called
-    # So we do NOT need to scale again — just use star_radius directly
     depth = 100 * star_radius
     radius1 = 0.1 * star_radius
     offset = 50 * star_radius + 0.5 * star_radius
@@ -1698,6 +1691,7 @@ def add_star(star_class=None):
 
     if star_class is None or star_class == 'RANDOM':
         star_class = select_star_class()
+        props.star_class = star_class
 
     props_data = star_properties[star_class]
     color = get_star_color(star_class)
@@ -1784,7 +1778,7 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
         if props.show_habitable_zone:
             star = bpy.data.objects.get("Star_" + props.star_class)
             if star:
-                star_radius = star.dimensions[0] / 2  # Unreal-scaled already
+                star_radius = star.dimensions[0] / 2 
                 mat = star.active_material
                 emission_strength = 100.0
 
@@ -1826,13 +1820,10 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
 
     return actual_tilt
 
-
 def add_orbiting_planet(location, radius, planet_index):
     bpy.context.scene.cursor.location = location
     planet = create_planet()
     props = bpy.context.scene.planet_generator_props
-
-    # ✅ Rename planet first so moons inherit proper name
     planet.name = f"{current_star_name}-{planet_index + 1}"
 
     # --- Spawn moons as nearby objects using original radius ---
@@ -1897,7 +1888,7 @@ def add_orbiting_planet(location, radius, planet_index):
 
     color_materials = create_color_materials()
     if not color_materials:
-        print("⚠️ No color materials generated. Skipping flag material assignment.")
+        print("No color materials generated. Skipping flag material assignment.")
         return
 
     selected_color = random.choice(list(color_materials.keys()))
@@ -1911,24 +1902,23 @@ def add_orbiting_planet(location, radius, planet_index):
                         node.inputs[0].default_value = random_obj
                     elif node.name == "Set Material.002":
                         node.inputs[2].default_value = selected_mat
-        print(f"✅ Applied object: {random_obj.name}, material: {selected_mat.name}")
+        print(f"Applied object: {random_obj.name}, material: {selected_mat.name}")
         
-        
-    print(f"🛰️ Planet Index {planet_index} — Original radius: {original_radius:.2f}")
+    print(f"Planet Index {planet_index} — Original radius: {original_radius:.2f}")
 
     if original_radius < 20:
         mat = create_wave_mixed_material()
-        print("🌐 Assigned wave-mixed shader to small planet (radius < 20).")
+        print("Assigned wave-mixed shader to small planet (radius < 20).")
     else:
         mat = create_custom_planet_material()
-        print("🌍 Assigned custom shader to large planet (radius >= 20).")
+        print("Assigned custom shader to large planet (radius >= 20).")
 
     for modifier in plane.modifiers:
         if modifier.name == "PlanetObjectPlacer":
             for node in modifier.node_group.nodes:
                 if node.name == "Set Material.001":
                     node.inputs[2].default_value = mat
-                    print(f"🎯 Planet material '{mat.name}' assigned to Set Material.001 input.")
+                    print(f"Planet material '{mat.name}' assigned to Set Material.001 input.")
 
     planet.hide_viewport = True
     planet.hide_render = True
@@ -1943,17 +1933,17 @@ def create_orbiting_planets(n):
 
     used_radii = []
 
-    # Step 1: Collect valid orbit distances
+    #Collect valid orbit distances
     while len(used_radii) < n:
         radius = random.uniform(min_radius, max_radius)
         if all(abs(radius - r) >= min_spacing for r in used_radii):
             used_radii.append(radius)
 
-    # Step 2: Sort by distance from the star
+    #Sort by distance from the star
     used_radii.sort()
 
     for index, orbit_radius in enumerate(used_radii):
-        planet_radius = random.uniform(5.0, 80.0)  # or use a more clever formula
+        planet_radius = random.uniform(5.0, 80.0)
         tilt_angle = create_orbit_ring(orbit_radius, name=f"OrbitRing_{index}", create_mesh=scene_props.show_orbit_rings)
         angle = random.uniform(0, 2 * math.pi)
 
@@ -1962,8 +1952,7 @@ def create_orbiting_planets(n):
         z = 0
 
         rotated = mathutils.Matrix.Rotation(math.radians(tilt_angle), 4, 'Y') @ mathutils.Vector((x, y, z))
-        add_orbiting_planet(rotated, planet_radius, index)  # ✅ pass planet radius, not orbit radius
-
+        add_orbiting_planet(rotated, planet_radius, index)
 
 def create_full_planet_system(num_orbiting_planets=5):
     global current_star_name
@@ -1974,7 +1963,7 @@ def create_full_planet_system(num_orbiting_planets=5):
     print(f"Selected star system: {current_star_name}")
     
     # Create a random object as the template
-    props = bpy.context.scene.planet_generator_props  # ✅ Moved up to top
+    props = bpy.context.scene.planet_generator_props
     enabled_spawnables = get_enabled_spawnables(props)
     if not enabled_spawnables:
         print("No enabled spawnables! Skipping object spawn.")
@@ -1987,7 +1976,6 @@ def create_full_planet_system(num_orbiting_planets=5):
     random_obj.hide_render = True
 
     add_star(props.star_class)  # Place star first
-    
 
     create_orbiting_planets(num_orbiting_planets)  # Then create planets that orbit it
 
@@ -2151,8 +2139,64 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
     enable_purple: bpy.props.BoolProperty(name="Purple", default=True)
     enable_black: bpy.props.BoolProperty(name="Black", default=True)
 
-    
-    
+class RandomizePlanetSettingsOperator(bpy.types.Operator):
+    bl_idname = "object.randomize_planet_settings"
+    bl_label = "Randomize Planet Settings"
+    bl_description = "Randomly fills out all generation settings"
+
+    def execute(self, context):
+        props = context.scene.planet_generator_props
+
+        # Randomize planet count
+        props.planet_count = random.randint(3, 25)
+
+        # Randomize density (ensure min <= max)
+        props.cube_density_min = random.uniform(0, 60)
+        props.cube_density_max = random.uniform(props.cube_density_min, 100)
+
+        # Estimate star radius for setting safe orbit distances
+        temp_class = select_star_class()
+        star_data = star_properties.get(temp_class)
+        safe_margin = 100.0  # To ensure orbit starts outside of star
+
+        if star_data:
+            est_radius = random.uniform(*star_data["radius_range"])
+            if props.unreal_size_scale or props.visualize_habitable_scale:
+                est_radius *= 0.01
+            props.min_orbit_radius = est_radius + safe_margin
+        else:
+            props.min_orbit_radius = 100.0
+
+        props.max_orbit_radius = props.min_orbit_radius + random.uniform(500, 5000)
+        props.min_orbit_spacing = random.uniform(30.0, 200.0)
+
+        # Set star class to RANDOM
+        props.star_class = 'RANDOM'
+
+        # Randomly enable at least 1 spawnable object
+        object_props = [
+            "enable_tree",
+            "enable_rock",
+            "enable_spire",
+            "enable_dish",
+            "enable_antenna"
+        ]
+        enabled_objects = random.sample(object_props, random.randint(1, len(object_props)))
+        for prop in object_props:
+            setattr(props, prop, prop in enabled_objects)
+
+        # Randomly enable at least 1 flag color
+        color_props = [
+            "enable_red", "enable_green", "enable_blue",
+            "enable_yellow", "enable_cyan", "enable_magenta",
+            "enable_orange", "enable_white", "enable_purple", "enable_black"
+        ]
+        enabled_colors = random.sample(color_props, random.randint(1, len(color_props)))
+        for prop in color_props:
+            setattr(props, prop, prop in enabled_colors)
+
+        self.report({'INFO'}, "Planet generator settings randomized.")
+        return {'FINISHED'}
 
 class GeneratePlanetSystemOperator(bpy.types.Operator):
     bl_idname = "object.generate_planet_system"
@@ -2174,6 +2218,8 @@ class PlanetGeneratorPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         props = context.scene.planet_generator_props
+        layout.operator("object.randomize_planet_settings", text="🎲 Randomize Planet Settings")
+
         layout.prop(props, "planet_count")
         layout.operator("object.generate_planet_system", text="Generate Planet System")
         layout.prop(props, "cube_density_min")
@@ -2266,17 +2312,195 @@ class PlanetGeneratorPanel(bpy.types.Panel):
 
         for prop_name, label in enabled_colors:
             layout.prop(props, prop_name, text=label)
+            
+        layout.separator()
+        layout.label(text="Environment Settings:")
+        layout.operator("object.set_background_image", icon="FILE_IMAGE")
+        layout.operator("object.remove_background_image", icon="X")
 
+        
+        layout.separator()
+        layout.label(text="Preset Tools:")
+        row = layout.row(align=True)
+        row.operator("object.save_planet_settings", icon="EXPORT")
+        row.operator("object.load_planet_settings", icon="IMPORT")
+        
+        layout.separator()
+        layout.label(text="Exported to your 'Downloads'", icon='FILE_FOLDER')
+        layout.operator("object.export_planet_system_fbx", icon='EXPORT')
+    
+
+class SetBackgroundImageOperator(bpy.types.Operator):
+    bl_idname = "object.set_background_image"
+    bl_label = "Set Background Image"
+    bl_description = "Set a custom HDRI or background image for the world environment"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: bpy.props.StringProperty(subtype="FILE_PATH")
+    filter_glob: bpy.props.StringProperty(default="*.hdr;*.exr;*.jpg;*.png", options={'HIDDEN'})
+
+    def execute(self, context):
+        try:
+            img = bpy.data.images.load(self.filepath)
+        except:
+            self.report({'ERROR'}, f"Failed to load image: {self.filepath}")
+            return {'CANCELLED'}
+
+        world = bpy.data.worlds.get("World")
+        if not world:
+            world = bpy.data.worlds.new("World")
+            bpy.context.scene.world = world
+
+        world.use_nodes = True
+        nodes = world.node_tree.nodes
+        links = world.node_tree.links
+
+        nodes.clear()
+
+        tex = nodes.new("ShaderNodeTexEnvironment")
+        tex.image = img
+        tex.location = (-300, 0)
+
+        background = nodes.new("ShaderNodeBackground")
+        background.location = (0, 0)
+
+        output = nodes.new("ShaderNodeOutputWorld")
+        output.location = (300, 0)
+
+        links.new(tex.outputs["Color"], background.inputs["Color"])
+        links.new(background.outputs["Background"], output.inputs["Surface"])
+
+        self.report({'INFO'}, f"Background set from: {self.filepath}")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}            
+
+
+class RemoveBackgroundImageOperator(bpy.types.Operator):
+    bl_idname = "object.remove_background_image"
+    bl_label = "Remove Background Image"
+    bl_description = "Remove custom background image and reset to dark environment"
+
+    def execute(self, context):
+        world = bpy.data.worlds.get("World")
+        if not world:
+            self.report({'ERROR'}, "World not found")
+            return {'CANCELLED'}
+
+        world.use_nodes = True
+        nodes = world.node_tree.nodes
+        links = world.node_tree.links
+
+        nodes.clear()
+
+        bg = nodes.new("ShaderNodeBackground")
+        bg.inputs["Color"].default_value = (0.01, 0.01, 0.01, 1.0)  # Almost black
+        bg.location = (0, 0)
+
+        out = nodes.new("ShaderNodeOutputWorld")
+        out.location = (200, 0)
+
+        links.new(bg.outputs["Background"], out.inputs["Surface"])
+
+        self.report({'INFO'}, "Background removed and reset to dark world")
+        return {'FINISHED'}
+
+class SavePlanetSettingsOperator(bpy.types.Operator):
+    bl_idname = "object.save_planet_settings"
+    bl_label = "💾 Save Settings"
+    bl_description = "Save current planet generator settings to a JSON file"
+
+    def execute(self, context):
+        props = context.scene.planet_generator_props
+        annotations = props.__annotations__
+        data = {}
+
+        for prop_name in annotations:
+            try:
+                val = getattr(props, prop_name)
+                if isinstance(val, (int, float, bool, str)):
+                    data[prop_name] = val
+            except Exception as e:
+                print(f"Could not serialize {prop_name}: {e}")
+
+        filepath = bpy.path.abspath("//planet_settings.json")
+        try:
+            with open(filepath, 'w') as f:
+                json.dump(data, f, indent=4)
+            self.report({'INFO'}, f"✅ Settings saved to {filepath}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to save: {e}")
+        return {'FINISHED'}
+
+class LoadPlanetSettingsOperator(bpy.types.Operator):
+    bl_idname = "object.load_planet_settings"
+    bl_label = "📂 Load Settings"
+    bl_description = "Load planet generator settings from a JSON file"
+
+    def execute(self, context):
+        props = context.scene.planet_generator_props
+        filepath = bpy.path.abspath("//planet_settings.json")
+
+        if not os.path.exists(filepath):
+            self.report({'ERROR'}, f"No settings file found at {filepath}")
+            return {'CANCELLED'}
+
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+
+            for key, val in data.items():
+                if hasattr(props, key):
+                    try:
+                        setattr(props, key, val)
+                    except Exception as e:
+                        print(f"⚠️ Failed to set {key}: {e}")
+            self.report({'INFO'}, f"✅ Loaded settings from {filepath}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to load: {e}")
+        return {'FINISHED'}
+
+class ExportPlanetSystemFBXOperator(bpy.types.Operator):
+    bl_idname = "object.export_planet_system_fbx"
+    bl_label = "Export Planet System as .FBX"
+    bl_description = "Export the entire generated planet system to your Downloads folder"
+
+    def execute(self, context):
+        # Get user Downloads path
+        downloads_path = str(Path.home() / "Downloads")
+        export_path = os.path.join(downloads_path, "exported_planet_system.fbx")
+
+        bpy.ops.export_scene.fbx(
+            filepath=export_path,
+            use_selection=False,
+            apply_unit_scale=True,
+            bake_space_transform=True
+        )
+
+        self.report({'INFO'}, f"Exported to {export_path}")
+        return {'FINISHED'}
 
 def register():
     bpy.utils.register_class(PlanetGeneratorProperties)
     bpy.utils.register_class(GeneratePlanetSystemOperator)
+    bpy.utils.register_class(SavePlanetSettingsOperator)
+    bpy.utils.register_class(LoadPlanetSettingsOperator)
+    bpy.utils.register_class(ExportPlanetSystemFBXOperator)
+    bpy.utils.register_class(SetBackgroundImageOperator)
+    bpy.utils.register_class(RemoveBackgroundImageOperator)
     bpy.utils.register_class(PlanetGeneratorPanel)
     bpy.types.Scene.planet_generator_props = bpy.props.PointerProperty(type=PlanetGeneratorProperties)
 
 def unregister():
     bpy.utils.unregister_class(PlanetGeneratorProperties)
     bpy.utils.unregister_class(GeneratePlanetSystemOperator)
+    bpy.utils.unregister_class(SavePlanetSettingsOperator)
+    bpy.utils.unregister_class(LoadPlanetSettingsOperator)
+    bpy.utils.unregister_class(ExportPlanetSystemFBXOperator)
+    bpy.utils.unregister_class(SetBackgroundImageOperator)
+    bpy.utils.unregister_class(RemoveBackgroundImageOperator)
     bpy.utils.unregister_class(PlanetGeneratorPanel)
     del bpy.types.Scene.planet_generator_props
 
