@@ -222,7 +222,9 @@ def label_object(obj, label_text):
 
     # Position and scale
     height_offset = obj.dimensions.z * 0.6 + 5.0
-    text_obj.location = obj.location + mathutils.Vector((0, 0, height_offset))
+    y_offset = props.planet_label_scale + 40.0  # Offset grows linearly with label size
+    text_obj.location = obj.location + mathutils.Vector((0, y_offset, height_offset))
+
     text_obj.scale = (props.planet_label_scale,) * 3
 
     # Create or assign glowing material
@@ -277,13 +279,14 @@ def create_tree(name="Tree", size=1):
     if name in bpy.data.objects:
         return bpy.data.objects[name]
 
-    trunk_height = size
-    bpy.ops.mesh.primitive_cube_add(size=size, location=(0, 0, trunk_height / 2))
+    scale = random.uniform(0.1, 0.5)
+    trunk_height = size * scale
+    bpy.ops.mesh.primitive_cube_add(size=size * scale, location=(0, 0, trunk_height / 2))
     trunk = bpy.context.active_object
     trunk.name = name + "_Trunk"
 
-    cone_height = size * 2
-    cone_radius = size * 1.2
+    cone_height = size * 2 * scale
+    cone_radius = size * 1.2 * scale
     bpy.ops.mesh.primitive_cone_add(
         radius1=cone_radius,
         depth=cone_height,
@@ -299,41 +302,45 @@ def create_tree(name="Tree", size=1):
 
     tree = bpy.context.active_object
     tree.name = name
-
     return tree
 
 def create_rock(name="Rock"):
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=(0, 0, 1))
+    scale = random.uniform(0.1, 0.5)
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1 * scale, location=(0, 0, 1 * scale))
     rock = bpy.context.active_object
     rock.name = name
-    rock.scale = [random.uniform(0.7, 1.2) for _ in range(3)]
+    rock.scale = [random.uniform(0.07, 0.12) for _ in range(3)]  # original was ~0.7–1.2
     bpy.ops.object.shade_smooth()
     return rock
 
 def create_spire(name="Spire"):
-    bpy.ops.mesh.primitive_cone_add(radius1=0.4, radius2=0.0, depth=3.0, location=(0, 0, 1.5))
+    scale = random.uniform(0.1, 0.8)
+    bpy.ops.mesh.primitive_cone_add(radius1=0.4 * scale, radius2=0.0, depth=3.0 * scale, location=(0, 0, 1.5 * scale))
     spire = bpy.context.active_object
     spire.name = name
     bpy.ops.object.shade_smooth()
     return spire
 
 def create_dish(name="Dish"):
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=(0, 0, 1))
+    scale = random.uniform(0.1, 0.4)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=1 * scale, location=(0, 0, 1 * scale))
     dish = bpy.context.active_object
     dish.name = name
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.mesh.bisect(plane_co=(0, 0, 1), plane_no=(0, 0, -1), use_fill=True, clear_inner=True)
+    bpy.ops.mesh.bisect(plane_co=(0, 0, 1 * scale), plane_no=(0, 0, -1), use_fill=True, clear_inner=True)
     bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.shade_smooth()
     return dish
 
+
 def create_antenna(name="Antenna"):
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.1, depth=2.5, location=(0, 0, 1.25))
+    scale = random.uniform(0.1, 1.0)
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.1 * scale, depth=2.5 * scale, location=(0, 0, 1.25 * scale))
     base = bpy.context.active_object
     base.name = name + "_Pole"
 
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.2, location=(0, 0, 2.5))
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.2 * scale, location=(0, 0, 2.5 * scale))
     top = bpy.context.active_object
     top.name = name + "_Tip"
 
@@ -344,7 +351,8 @@ def create_antenna(name="Antenna"):
 
     final = bpy.context.active_object
     final.name = name
-    return final 
+    return final
+
 
 SPAWNABLE_OBJECTS = {
     "Tree": create_tree,
@@ -1324,7 +1332,7 @@ def geometry_nodes_002_node_group():
 
     distribute_points_on_faces_001.inputs[3].default_value = random_density_percent
     # Normalize to 0.0–1.0 (because later it's multiplied by 1.0)
-    math_001.inputs[0].default_value = random_density_percent * 0.001
+    math_001.inputs[0].default_value = random_density_percent * 0.01
     math_001.inputs[1].default_value = 1.0
 
     print(f"[{scene.frame_current}] Assigned {random_density_percent:.1f}% cube density")
@@ -1775,6 +1783,8 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
         hue = props.orbit_ring_hue
         luminosity = props.orbit_ring_luminosity
 
+        hz_inner, hz_outer = 0, 0  # Fallback default values
+
         if props.show_habitable_zone:
             star = bpy.data.objects.get("Star_" + props.star_class)
             if star:
@@ -1788,15 +1798,22 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
                             emission_strength = node.inputs['Strength'].default_value
                             break
 
-                # Inverse your unreal brightness approximation
-                luminosity_est = 10 ** ((emission_strength - 100) / 250) if emission_strength > 100 else 0.01
+                # Avoid math domain/overflow errors
+                try:
+                    exponent = min((emission_strength - 100) / 250, 10)
+                    luminosity_est = 10 ** exponent if emission_strength > 100 else 0.01
+                except OverflowError:
+                    luminosity_est = 1e10
+
                 hz_inner, hz_outer = compute_habitable_zone(luminosity_est)
+
                 if props.visualize_habitable_scale:
                     hz_inner *= 0.00001
                     hz_outer *= 0.00001
                 elif props.unreal_size_scale:
                     hz_inner *= 0.01
                     hz_outer *= 0.01
+
                 dist = radius - star_radius
 
                 if dist < hz_inner:
@@ -1807,13 +1824,10 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
                     color = (0.0, t, 1.0, 1.0)  # Blue → Teal
                 else:
                     color = (0.0, 1.0, 0.0, 1.0)  # Inside = Green
-                
-                print(f"[{name}] OrbitDist={dist:.1f}m | HZ=({hz_inner:.1f}m–{hz_outer:.1f}m) → Color={color}")
 
+                print(f"[{name}] OrbitDist={dist:.1f}m | HZ=({hz_inner:.1f}m–{hz_outer:.1f}m) → Color={color}")
             else:
                 color = (1.0, 1.0, 1.0, 1.0)
-        else:
-            color = (0.8, 0.9, 1.0, 1.0) if use_default else colorsys.hsv_to_rgb(hue, 1.0, 1.0) + (1.0,)
 
         mat = get_orbit_material(f"{name}_Material", color, luminosity)
         ring.data.materials.append(mat)
