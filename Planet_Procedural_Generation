@@ -1752,6 +1752,9 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
     max_tilt = 90.0
     tilt_angle = random.uniform(0, max_tilt)
 
+    # Fallback color to prevent UnboundLocalError
+    color = (1.0, 1.0, 1.0, 1.0)  # White by default
+
     # Exponential falloff
     k = math.log(2) / 30
     chance = math.exp(-k * tilt_angle)
@@ -1998,6 +2001,7 @@ def create_full_planet_system(num_orbiting_planets=5):
 class PlanetGeneratorProperties(bpy.types.PropertyGroup):
     planet_count: bpy.props.IntProperty(
         name="Planet Count",
+        description="Amount of planets that will get generated around the star",
         default=5,
         min=1,
         max=100
@@ -2103,7 +2107,7 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
         default=False
     )
     visualize_habitable_scale: bpy.props.BoolProperty(
-        name="Visualize Habitability (1:10M)",
+        name="Simulate Habitability (1:10M)",
         description="Enable extreme scale-down to better visualize habitability distances (Object size remains at 1:10 000)",
         default=False
     )
@@ -2122,8 +2126,8 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
     enable_antenna: bpy.props.BoolProperty(name="Enable Antenna", default=True)
     
     show_planet_labels: bpy.props.BoolProperty(
-    name="Show Planet Labels",
-    description="Display labels above each planet for easier identification",
+    name="↓Show Planet Labels↓",
+    description="Display labels above each planet for easier identification (Press for Options)",
     default=False
     )
     planet_label_scale: bpy.props.FloatProperty(
@@ -2156,7 +2160,7 @@ class PlanetGeneratorProperties(bpy.types.PropertyGroup):
 class RandomizePlanetSettingsOperator(bpy.types.Operator):
     bl_idname = "object.randomize_planet_settings"
     bl_label = "Randomize Planet Settings"
-    bl_description = "Randomly fills out all generation settings"
+    bl_description = "Randomly fills out generation settings such as: Planet Count, Density, Orbits and Objects"
 
     def execute(self, context):
         props = context.scene.planet_generator_props
@@ -2233,19 +2237,20 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         layout = self.layout
         props = context.scene.planet_generator_props
         layout.operator("object.randomize_planet_settings", text="🎲 Randomize Planet Settings")
-
-        layout.prop(props, "planet_count")
         layout.operator("object.generate_planet_system", text="Generate Planet System")
+        
+        layout.separator()
+        layout.prop(props, "planet_count")
         layout.prop(props, "cube_density_min")
         layout.prop(props, "cube_density_max")
-        layout.prop(props, "show_orbit_rings")
         layout.prop(props, "planet_spacing_min")
         layout.prop(props, "min_orbit_spacing")
         layout.prop(props, "min_orbit_radius")
         layout.prop(props, "max_orbit_radius")
         layout.prop(props, "star_class")
-        layout.label(text="Brightness Modes:")
         
+        layout.separator()
+        layout.label(text="Brightness Modes:")
         row = layout.row()
         row.enabled = not props.no_brightness
         row.prop(props, "enable_unrealism")
@@ -2254,6 +2259,7 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         row.enabled = not props.enable_unrealism
         row.prop(props, "no_brightness")
         
+        layout.separator()
         layout.label(text="Orbit Ring Appearance:")
         layout.prop(props, "use_default_orbit_color")
 
@@ -2262,15 +2268,22 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         row.prop(props, "orbit_ring_hue")
         layout.prop(props, "orbit_ring_luminosity")
         layout.prop(props, "orbit_ring_bevel_depth")
+        layout.prop(props, "show_habitable_zone")
         
+        layout.separator()
+        layout.label(text="Other Star System Modifications:")
+        layout.prop(props, "show_orbit_rings")
+        layout.prop(props, "show_planet_labels")
+        if props.show_planet_labels:
+            layout.prop(props, "planet_label_scale")
+            layout.prop(props, "planet_label_luminosity")
+        layout.label(text="Only one allowed to be on at a time", icon='INFO')
         row = layout.row()
         row.enabled = not props.visualize_habitable_scale
         row.prop(props, "unreal_size_scale")
         row = layout.row()
         row.enabled = not props.unreal_size_scale
         row.prop(props, "visualize_habitable_scale")
-
-        layout.prop(props, "show_habitable_zone")
         
         enabled_items = [
             props.enable_tree,
@@ -2280,37 +2293,33 @@ class PlanetGeneratorPanel(bpy.types.Panel):
             props.enable_antenna,
         ]
         enabled_count = sum(enabled_items)
-
+        
+        layout.separator()
         layout.label(text="Enable Spawnable Objects:")
         layout.label(text="At least one must remain enabled", icon='INFO')
-
         # Dynamically disable the last remaining enabled checkbox
         row = layout.row()
         row.enabled = not (enabled_count == 1 and props.enable_tree)
         row.prop(props, "enable_tree")
-
         row = layout.row()
         row.enabled = not (enabled_count == 1 and props.enable_rock)
         row.prop(props, "enable_rock")
-
         row = layout.row()
         row.enabled = not (enabled_count == 1 and props.enable_spire)
         row.prop(props, "enable_spire")
-
         row = layout.row()
         row.enabled = not (enabled_count == 1 and props.enable_dish)
         row.prop(props, "enable_dish")
-
         row = layout.row()
         row.enabled = not (enabled_count == 1 and props.enable_antenna)
         row.prop(props, "enable_antenna")
-        
-        layout.prop(props, "show_planet_labels")
-        if props.show_planet_labels:
-            layout.prop(props, "planet_label_scale")
-            layout.prop(props, "planet_label_luminosity")
             
+        layout.separator()
+        layout = self.layout
+        props = context.scene.planet_generator_props
         layout.label(text="Enable Flag Colors:")
+        layout.label(text="At least one must remain enabled", icon='INFO')
+
         enabled_colors = [
             ("enable_red", "Red"),
             ("enable_green", "Green"),
@@ -2324,15 +2333,19 @@ class PlanetGeneratorPanel(bpy.types.Panel):
             ("enable_black", "Black"),
         ]
 
+        enabled_count = sum(getattr(props, name) for name, _ in enabled_colors)
+
         for prop_name, label in enabled_colors:
-            layout.prop(props, prop_name, text=label)
+            row = layout.row()
+            row.prop(props, prop_name, text=label)
+            if enabled_count <= 1 and getattr(props, prop_name):
+                row.enabled = False
             
         layout.separator()
         layout.label(text="Environment Settings:")
         layout.operator("object.set_background_image", icon="FILE_IMAGE")
         layout.operator("object.remove_background_image", icon="X")
 
-        
         layout.separator()
         layout.label(text="Preset Tools:")
         row = layout.row(align=True)
