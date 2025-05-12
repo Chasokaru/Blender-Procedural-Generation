@@ -2250,6 +2250,7 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         
         layout.separator()
         layout.label(text="Orbit Ring Appearance:")
+        layout.prop(props, "show_orbit_rings")
         layout.prop(props, "use_default_orbit_color")
 
         row = layout.row()
@@ -2261,7 +2262,6 @@ class PlanetGeneratorPanel(bpy.types.Panel):
         
         layout.separator()
         layout.label(text="Other Star System Modifications:")
-        layout.prop(props, "show_orbit_rings")
         layout.prop(props, "show_planet_labels")
         if props.show_planet_labels:
             layout.prop(props, "planet_label_scale")
