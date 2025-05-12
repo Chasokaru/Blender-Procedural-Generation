@@ -2172,19 +2172,8 @@ class RandomizePlanetSettingsOperator(bpy.types.Operator):
         props.cube_density_min = random.uniform(0, 60)
         props.cube_density_max = random.uniform(props.cube_density_min, 100)
 
-        # Estimate star radius for setting safe orbit distances
-        temp_class = select_star_class()
-        star_data = star_properties.get(temp_class)
-        safe_margin = 100.0  # To ensure orbit starts outside of star
-
-        if star_data:
-            est_radius = random.uniform(*star_data["radius_range"])
-            if props.unreal_size_scale or props.visualize_habitable_scale:
-                est_radius *= 0.01
-            props.min_orbit_radius = est_radius + safe_margin
-        else:
-            props.min_orbit_radius = 100.0
-
+        # Randomized but safe orbit ranges
+        props.min_orbit_radius = random.uniform(100.0, 300.0)  # Minimum must be at least 100
         props.max_orbit_radius = props.min_orbit_radius + random.uniform(500, 5000)
         props.min_orbit_spacing = random.uniform(30.0, 200.0)
 
