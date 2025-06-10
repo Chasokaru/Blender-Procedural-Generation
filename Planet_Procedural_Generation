@@ -1803,10 +1803,17 @@ def create_orbit_ring(radius, name="OrbitRing", create_mesh=True):
 
                 # Avoid math domain/overflow errors
                 try:
-                    exponent = min((emission_strength - 100) / 250, 10)
-                    luminosity_est = 10 ** exponent if emission_strength > 100 else 0.01
+                    if emission_strength < 10000:
+                    # Gentle boost for small stars
+                        luminosity_est = emission_strength
+                    else:
+                        # Harsh scale for large stars
+                        exponent = min((emission_strength - 100) / 250, 10)
+                        luminosity_est = 10 ** exponent
                 except OverflowError:
                     luminosity_est = 1e10
+
+
 
                 hz_inner, hz_outer = compute_habitable_zone(luminosity_est)
 
